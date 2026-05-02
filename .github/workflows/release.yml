@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release
+    runs-on: macos-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Run tests
+        run: make test
+
+      - name: Build app
+        run: make check build
+
+      - name: Package app bundle
+        run: make package
+
+      - name: Create zip archive
+        run: |
+          cd dist
+          ditto -c -k --keepParent BridgeFlow.app "BridgeFlow-${{ steps.version.outputs.value }}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "BridgeFlow-${{ steps.version.outputs.value }}"
+          path: "dist/BridgeFlow-${{ steps.version.outputs.value }}.zip"
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "BridgeFlow ${{ steps.version.outputs.value }}"
+          draft: true
+          prerelease: true
+          files: "dist/BridgeFlow-${{ steps.version.outputs.value }}.zip"
+          body: |
+            BridgeFlow ${{ steps.version.outputs.value }}
+
+            This draft release contains a macOS app bundle built from the tagged source.
+
+            Install by downloading the zip, opening it, and moving `BridgeFlow.app` to `/Applications`.
+
+            The app is not notarized yet. macOS may require you to open it from Finder with Control-click > Open while distribution signing is still being prepared.

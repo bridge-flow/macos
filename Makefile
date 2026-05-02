@@ -1,4 +1,4 @@
-.PHONY: test check build mocks assets run
+.PHONY: test check build mocks assets package run
 
 test:
 	swift run BridgeFlowCoreTests
@@ -14,6 +14,9 @@ mocks:
 
 assets:
 	swift script/generate_assets.swift
+
+package:
+	./script/build_and_run.sh --package
 
 run:
 	./script/build_and_run.sh
