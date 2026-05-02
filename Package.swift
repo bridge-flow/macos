@@ -21,6 +21,7 @@ let package = Package(
             name: "BridgeFlow",
             dependencies: ["BridgeFlowCore"],
             path: "BridgeFlow",
+            exclude: ["Info.plist"],
             resources: [
                 .process("Assets.xcassets"),
                 .copy("Resources")
