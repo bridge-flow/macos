@@ -6,133 +6,42 @@ struct PermissionOnboardingView: View {
     @ObservedObject var appState: AppState
     @ObservedObject private var permissions: PermissionManager
     @ObservedObject private var settings: SettingsStore
-    @Binding private var isPresented: Bool
 
     @State private var currentStep: PermissionOnboardingStep = .accessibility
+    @State private var requestedSteps: Set<PermissionOnboardingStep> = []
     @State private var didRequestLocalNetwork = false
+
     private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    init(appState: AppState, isPresented: Binding<Bool>) {
+    init(appState: AppState) {
         self.appState = appState
         _permissions = ObservedObject(wrappedValue: appState.permissions)
         _settings = ObservedObject(wrappedValue: appState.settings)
-        _isPresented = isPresented
     }
 
     var body: some View {
-        ZStack {
-            BridgeFlowPalette.graphite.ignoresSafeArea()
-
+        ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 14) {
-                    Image("BridgeFlowIcon", bundle: BridgeFlowResources.bundle)
-                        .resizable()
-                        .frame(width: 54, height: 54)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                header
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Set up BridgeFlow")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(BridgeFlowPalette.textPrimary)
-                        Text("Grant the macOS permissions needed for reliable switching between Macs.")
-                            .font(.callout)
-                            .foregroundStyle(BridgeFlowPalette.textSecondary)
-                    }
+                HStack(alignment: .top, spacing: 20) {
+                    stepList
+                        .frame(width: 250)
+
+                    setupPanel
+                        .frame(maxWidth: .infinity, minHeight: 390)
                 }
 
-                HStack(alignment: .top, spacing: 18) {
-                    VStack(spacing: 10) {
-                        ForEach(PermissionOnboardingStep.allCases) { step in
-                            stepButton(step)
-                        }
-                    }
-                    .frame(width: 220)
-
-                    GlassCard {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack(spacing: 14) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(BridgeFlowPalette.accentGradient.opacity(0.16))
-                                    Image(systemName: currentStep.systemImage)
-                                        .font(.title)
-                                        .foregroundStyle(BridgeFlowPalette.cyan)
-                                }
-                                .frame(width: 60, height: 60)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(currentStep.title)
-                                        .font(.title2.weight(.bold))
-                                        .foregroundStyle(BridgeFlowPalette.textPrimary)
-                                    Text(statusText(for: currentStep))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(statusColour(for: currentStep))
-                                }
-                            }
-
-                            Text(currentStep.description)
-                                .font(.body)
-                                .foregroundStyle(BridgeFlowPalette.textSecondary)
-
-                            if currentStep == .localNetwork {
-                                Text("macOS does not provide a preflight API for Local Network. BridgeFlow starts Bonjour discovery from this step; the system prompt may appear only if macOS has not already recorded a decision for this app.")
-                                    .font(.callout)
-                                    .foregroundStyle(BridgeFlowPalette.textSecondary)
-                            }
-
-                            Spacer(minLength: 0)
-
-                            HStack(spacing: 10) {
-                                GradientButton(title: currentStep.primaryActionTitle, systemImage: currentStep.systemImage) {
-                                    performPrimaryAction()
-                                }
-
-                                if currentStep != .localNetwork {
-                                    Button {
-                                        openSettingsForCurrentStep()
-                                    } label: {
-                                        Label("Open System Settings", systemImage: "gear")
-                                    }
-                                }
-
-                                Button {
-                                    refreshPermissionState(allowAutoAdvance: true)
-                                } label: {
-                                    Label("Refresh", systemImage: "arrow.clockwise")
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    }
-                }
-
-                HStack {
-                    Button("Continue without all permissions") {
-                        complete(startBridgeFlow: false)
-                    }
-
-                    Spacer()
-
-                    Button("Back") {
-                        move(offset: -1)
-                    }
-                    .disabled(currentIndex == 0)
-
-                    Button(currentIndex == PermissionOnboardingStep.allCases.count - 1 ? "Finish & Start" : "Continue") {
-                        if currentIndex == PermissionOnboardingStep.allCases.count - 1 {
-                            complete(startBridgeFlow: true)
-                        } else {
-                            move(offset: 1)
-                        }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
+                footer
             }
-            .padding(26)
+            .padding(28)
         }
-        .preferredColorScheme(.dark)
         .onAppear {
             refreshPermissionState(allowAutoAdvance: true)
+            requestCurrentStepIfNeeded()
+        }
+        .onChange(of: currentStep) { _ in
+            requestCurrentStepIfNeeded()
         }
         .onReceive(refreshTimer) { _ in
             refreshPermissionState(allowAutoAdvance: true)
@@ -142,8 +51,186 @@ struct PermissionOnboardingView: View {
         }
     }
 
-    private var currentIndex: Int {
-        PermissionOnboardingStep.allCases.firstIndex(of: currentStep) ?? 0
+    private var header: some View {
+        HStack(spacing: 14) {
+            Image("BridgeFlowIcon", bundle: BridgeFlowResources.bundle)
+                .resizable()
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Setup")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(BridgeFlowPalette.textPrimary)
+                Text("BridgeFlow needs these macOS approvals before edge switching can work reliably.")
+                    .font(.callout)
+                    .foregroundStyle(BridgeFlowPalette.textSecondary)
+            }
+
+            Spacer()
+        }
+    }
+
+    private var stepList: some View {
+        VStack(spacing: 10) {
+            ForEach(PermissionOnboardingStep.allCases) { step in
+                Button {
+                    currentStep = step
+                } label: {
+                    HStack(spacing: 11) {
+                        Image(systemName: icon(for: step))
+                            .font(.headline)
+                            .foregroundStyle(colour(for: step))
+                            .frame(width: 22)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(step.title)
+                                .font(.headline)
+                                .foregroundStyle(BridgeFlowPalette.textPrimary)
+                            Text(statusText(for: step))
+                                .font(.caption)
+                                .foregroundStyle(colour(for: step))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(step == currentStep ? BridgeFlowPalette.panelElevated : BridgeFlowPalette.panel.opacity(0.68))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(step == currentStep ? BridgeFlowPalette.cyan.opacity(0.42) : .white.opacity(0.06), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var setupPanel: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(colour(for: currentStep).opacity(0.16))
+                        Image(systemName: currentStep.systemImage)
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(colour(for: currentStep))
+                    }
+                    .frame(width: 58, height: 58)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(currentStep.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(BridgeFlowPalette.textPrimary)
+                        Text(statusText(for: currentStep))
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(colour(for: currentStep))
+                    }
+
+                    Spacer()
+                }
+
+                Text(currentStep.description)
+                    .font(.body)
+                    .foregroundStyle(BridgeFlowPalette.textSecondary)
+
+                setupNotes
+
+                Spacer(minLength: 0)
+
+                actionRow
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var setupNotes: some View {
+        if currentStep == .localNetwork {
+            Text("Apple does not provide a direct Local Network request or preflight API. BridgeFlow starts Bonjour discovery here; a native prompt appears only when macOS needs a decision for this signed app. If the prompt was already answered, use System Settings > Privacy & Security > Local Network.")
+                .font(.callout)
+                .foregroundStyle(BridgeFlowPalette.textSecondary)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(BridgeFlowPalette.panel.opacity(0.72))
+                )
+        } else if isComplete(currentStep) {
+            Text("Ready. BridgeFlow will move to the next setup item automatically.")
+                .font(.callout)
+                .foregroundStyle(BridgeFlowPalette.success)
+        } else {
+            Text("If macOS opens System Settings, enable BridgeFlow there and return to this window. This screen refreshes automatically.")
+                .font(.callout)
+                .foregroundStyle(BridgeFlowPalette.textSecondary)
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            Button {
+                performPrimaryAction(force: true)
+            } label: {
+                Label(currentStep.primaryActionTitle, systemImage: currentStep.systemImage)
+                    .frame(minWidth: 164)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(BridgeFlowPalette.blue)
+
+            Button {
+                openSettingsForCurrentStep()
+            } label: {
+                Label("System Settings", systemImage: "gear")
+                    .frame(minWidth: 148)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+
+            Button {
+                refreshPermissionState(allowAutoAdvance: true)
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .frame(minWidth: 104)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Text("Setup state updates live. Local Network is confirmed by peer discovery because macOS does not expose a permission status API.")
+                .font(.caption)
+                .foregroundStyle(BridgeFlowPalette.textSecondary)
+
+            Spacer()
+
+            Button {
+                settings.permissionsOnboardingCompleted = true
+                appState.requestLocalNetworkAccess()
+                if settings.startOnLaunch {
+                    appState.start()
+                }
+            } label: {
+                Label("Finish Setup", systemImage: "checkmark")
+                    .frame(minWidth: 132)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(canFinish ? BridgeFlowPalette.success : BridgeFlowPalette.textSecondary)
+            .disabled(!canFinish)
+        }
+    }
+
+    private var canFinish: Bool {
+        permissions.snapshot.accessibilityGranted && permissions.snapshot.inputMonitoringGranted
     }
 
     private var progress: PermissionOnboardingProgress {
@@ -159,39 +246,12 @@ struct PermissionOnboardingView: View {
         }
     }
 
-    private func stepButton(_ step: PermissionOnboardingStep) -> some View {
-        Button {
-            currentStep = step
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isComplete(step) ? "checkmark.circle.fill" : step.systemImage)
-                    .foregroundStyle(isComplete(step) ? BridgeFlowPalette.success : BridgeFlowPalette.textSecondary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(step.title)
-                        .font(.headline)
-                    Text(statusText(for: step))
-                        .font(.caption)
-                        .foregroundStyle(statusColour(for: step))
-                }
-
-                Spacer()
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(step == currentStep ? BridgeFlowPalette.panelElevated : BridgeFlowPalette.panel.opacity(0.64))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(step == currentStep ? BridgeFlowPalette.cyan.opacity(0.35) : .white.opacity(0.06), lineWidth: 1)
-                    )
-            )
+    private func performPrimaryAction(force: Bool) {
+        if !force, requestedSteps.contains(currentStep) {
+            return
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(BridgeFlowPalette.textPrimary)
-    }
+        requestedSteps.insert(currentStep)
 
-    private func performPrimaryAction() {
         switch currentStep {
         case .accessibility:
             permissions.requestAccessibility()
@@ -201,7 +261,15 @@ struct PermissionOnboardingView: View {
             didRequestLocalNetwork = true
             appState.requestLocalNetworkAccess()
         }
+
         refreshPermissionState(allowAutoAdvance: true)
+    }
+
+    private func requestCurrentStepIfNeeded() {
+        guard !isComplete(currentStep) else {
+            return
+        }
+        performPrimaryAction(force: false)
     }
 
     private func openSettingsForCurrentStep() {
@@ -216,32 +284,11 @@ struct PermissionOnboardingView: View {
         refreshPermissionState(allowAutoAdvance: false)
     }
 
-    private func move(offset: Int) {
-        let steps = PermissionOnboardingStep.allCases
-        let nextIndex = min(max(currentIndex + offset, 0), steps.count - 1)
-        currentStep = steps[nextIndex]
-    }
-
-    private func complete(startBridgeFlow: Bool) {
-        settings.permissionsOnboardingCompleted = true
-        appState.requestLocalNetworkAccess()
-        _ = permissions.refresh()
-        if startBridgeFlow {
-            appState.start()
-        }
-        isPresented = false
-    }
-
-    private func isComplete(_ step: PermissionOnboardingStep) -> Bool {
-        progress.isComplete(step)
-    }
-
     private func refreshPermissionState(allowAutoAdvance: Bool) {
         _ = appState.refreshPermissionsAndResumeInputCaptureIfPossible()
         guard allowAutoAdvance else {
             return
         }
-
         advanceWhenCurrentStepIsReady()
     }
 
@@ -258,17 +305,25 @@ struct PermissionOnboardingView: View {
         currentStep = step
     }
 
+    private func isComplete(_ step: PermissionOnboardingStep) -> Bool {
+        progress.isComplete(step)
+    }
+
+    private func icon(for step: PermissionOnboardingStep) -> String {
+        isComplete(step) ? "checkmark.circle.fill" : step.systemImage
+    }
+
     private func statusText(for step: PermissionOnboardingStep) -> String {
         if progress.isComplete(step) {
             return "Ready"
         }
         if step == .localNetwork && didRequestLocalNetwork {
-            return "Requested"
+            return step.pendingStatusText
         }
-        return "Needs action"
+        return step.pendingStatusText
     }
 
-    private func statusColour(for step: PermissionOnboardingStep) -> Color {
+    private func colour(for step: PermissionOnboardingStep) -> Color {
         if progress.isComplete(step) {
             return BridgeFlowPalette.success
         }

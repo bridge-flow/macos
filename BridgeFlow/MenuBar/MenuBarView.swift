@@ -33,10 +33,11 @@ struct MenuBarView: View {
                 appState.isRunning ? appState.stop() : appState.start()
             }
 
-            Button("Switch to Local") {
-                appState.switchToLocal()
+            if appState.activePeerID != nil {
+                Button("Switch to Local") {
+                    appState.switchToLocal()
+                }
             }
-            .disabled(appState.activePeerID == nil)
 
             Button("Open BridgeFlow") {
                 openWindow(id: "main")

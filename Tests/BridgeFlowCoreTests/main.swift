@@ -339,6 +339,9 @@ func testPermissionOnboardingStepsUseExpectedOrderAndCopy() throws {
     try expectEqual(PermissionOnboardingStep.accessibility.title, "Accessibility", "Accessibility step should use the macOS permission name")
     try expectEqual(PermissionOnboardingStep.inputMonitoring.primaryActionTitle, "Request Input Monitoring", "Input Monitoring step should expose the request action")
     try expectEqual(PermissionOnboardingStep.localNetwork.systemImage, "network", "Local Network step should use the network symbol")
+    try expectEqual(PermissionOnboardingStep.localNetwork.primaryActionTitle, "Start Discovery", "Local Network should describe the real action BridgeFlow can take")
+    try expect(PermissionOnboardingStep.localNetwork.hasNativeRequestAPI == false, "Local Network should not be represented as a directly requestable macOS permission")
+    try expectEqual(PermissionOnboardingStep.localNetwork.pendingStatusText, "Waiting for macOS or peer discovery", "Local Network should not look granted just because discovery was started")
 }
 
 func testPermissionOnboardingProgressAdvancesAfterGrantedStep() throws {

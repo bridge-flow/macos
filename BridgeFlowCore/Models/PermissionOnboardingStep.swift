@@ -40,6 +40,24 @@ public enum PermissionOnboardingStep: String, CaseIterable, Identifiable, Sendab
         }
     }
 
+    public var hasNativeRequestAPI: Bool {
+        switch self {
+        case .accessibility, .inputMonitoring:
+            true
+        case .localNetwork:
+            false
+        }
+    }
+
+    public var pendingStatusText: String {
+        switch self {
+        case .accessibility, .inputMonitoring:
+            "Needs action"
+        case .localNetwork:
+            "Waiting for macOS or peer discovery"
+        }
+    }
+
     public var systemImage: String {
         switch self {
         case .accessibility:

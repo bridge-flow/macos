@@ -3,11 +3,8 @@ import BridgeFlowCore
 import SwiftUI
 
 enum BridgeFlowSection: String, CaseIterable, Identifiable {
-    case dashboard
-    case peers
-    case peripherals
-    case layout
-    case permissions
+    case flow
+    case setup
     case settings
     case logs
 
@@ -15,11 +12,8 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .dashboard: "Dashboard"
-        case .peers: "Peers"
-        case .peripherals: "Peripherals"
-        case .layout: "Layout"
-        case .permissions: "Permissions"
+        case .flow: "Flow"
+        case .setup: "Setup"
         case .settings: "Settings"
         case .logs: "Logs"
         }
@@ -27,11 +21,8 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .dashboard: "gauge.with.dots.needle.67percent"
-        case .peers: "desktopcomputer.and.macbook"
-        case .peripherals: "keyboard"
-        case .layout: "rectangle.connected.to.line.below"
-        case .permissions: "lock.shield"
+        case .flow: "rectangle.connected.to.line.below"
+        case .setup: "checklist.checked"
         case .settings: "slider.horizontal.3"
         case .logs: "list.bullet.rectangle"
         }
@@ -41,9 +32,8 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
 struct BridgeFlowRootView: View {
     @ObservedObject var appState: AppState
     @ObservedObject private var settings: SettingsStore
-    @State private var selection: BridgeFlowSection? = .dashboard
+    @State private var selection: BridgeFlowSection? = .flow
     @State private var didAutoStart = false
-    @State private var showPermissionOnboarding = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -67,35 +57,12 @@ struct BridgeFlowRootView: View {
                 selectedView
             }
         }
-        .toolbar {
-            ToolbarItemGroup {
-                StatusBadge(status: appState.connectionStatus)
-
-                Button {
-                    appState.switchToLocal()
-                } label: {
-                    Label("Switch to Local", systemImage: "cursorarrow.click.2")
-                }
-                .disabled(appState.activePeerID == nil)
-
-                Button {
-                    appState.isRunning ? appState.stop() : appState.start()
-                } label: {
-                    Label(appState.isRunning ? "Stop" : "Start", systemImage: appState.isRunning ? "stop.fill" : "play.fill")
-                }
-            }
-        }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showPermissionOnboarding) {
-            PermissionOnboardingView(appState: appState, isPresented: $showPermissionOnboarding)
-                .frame(width: 720, height: 560)
-                .interactiveDismissDisabled()
-        }
         .task {
             guard !didAutoStart else { return }
             didAutoStart = true
             if !settings.permissionsOnboardingCompleted {
-                showPermissionOnboarding = true
+                selection = .setup
                 return
             }
             if appState.settings.startOnLaunch {
@@ -104,7 +71,9 @@ struct BridgeFlowRootView: View {
         }
         .onChange(of: settings.permissionsOnboardingCompleted) { completed in
             if !completed {
-                showPermissionOnboarding = true
+                selection = .setup
+            } else if selection == .setup {
+                selection = .flow
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -114,17 +83,13 @@ struct BridgeFlowRootView: View {
 
     @ViewBuilder
     private var selectedView: some View {
-        switch selection ?? .dashboard {
-        case .dashboard:
-            DashboardView(appState: appState)
-        case .peers:
-            PeersView(appState: appState)
-        case .peripherals:
-            PeripheralsView(appState: appState)
-        case .layout:
-            LayoutView(appState: appState)
-        case .permissions:
-            PermissionsView(appState: appState)
+        switch selection ?? .flow {
+        case .flow:
+            FlowView(appState: appState) {
+                selection = .setup
+            }
+        case .setup:
+            PermissionOnboardingView(appState: appState)
         case .settings:
             SettingsView(appState: appState)
         case .logs:
