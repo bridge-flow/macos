@@ -4,6 +4,7 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="BridgeFlow"
 BUNDLE_ID="dev.bridgeflow.app"
+CONFIGURATION="${CONFIGURATION:-debug}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -16,8 +17,8 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 cd "$ROOT_DIR"
-swift build
-BUILD_DIR="$(swift build --show-bin-path)"
+swift build -c "$CONFIGURATION" --product "$APP_NAME"
+BUILD_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 RESOURCE_BUNDLE="$BUILD_DIR/BridgeFlow_BridgeFlow.bundle"
 

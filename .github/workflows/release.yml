@@ -46,6 +46,8 @@ jobs:
 
       - name: Package app bundle
         run: make package
+        env:
+          CONFIGURATION: release
 
       - name: Create zip archive
         run: |
@@ -62,6 +64,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "${{ steps.version.outputs.value }}"
+          target_commitish: "${{ github.sha }}"
           name: "BridgeFlow ${{ steps.version.outputs.value }}"
           draft: true
           prerelease: true
