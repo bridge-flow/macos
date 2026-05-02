@@ -9,26 +9,24 @@ public struct DiscoveredPeer: Identifiable {
     public let role: AppMode
     public let endpoint: NWEndpoint
     public let endpointDescription: String
+    public let hasStableID: Bool
 
     public init?(
         endpoint: NWEndpoint,
         txtRecord: NWTXTRecord
     ) {
         let values = txtRecord.dictionary
-        guard
-            let idValue = values["id"],
-            let id = UUID(uuidString: idValue)
-        else {
-            return nil
-        }
+        let fallbackName = Self.serviceName(from: endpoint)
+        let stableID = values["id"].flatMap(UUID.init(uuidString:))
 
-        self.id = id
-        self.name = values["name"] ?? Self.serviceName(from: endpoint)
+        self.id = stableID ?? Self.fallbackID(for: endpoint)
+        self.name = values["name"] ?? fallbackName
         self.hostname = values["hostname"] ?? ""
         self.appVersion = values["version"] ?? "unknown"
         self.role = AppMode(rawValue: values["role"] ?? "") ?? .both
         self.endpoint = endpoint
         self.endpointDescription = String(describing: endpoint)
+        self.hasStableID = stableID != nil
     }
 
     public static func txtRecord(for peer: PeerInfo) -> NWTXTRecord {
@@ -53,6 +51,24 @@ public struct DiscoveredPeer: Identifiable {
             return String(describing: endpoint)
         }
         return name
+    }
+
+    private static func fallbackID(for endpoint: NWEndpoint) -> UUID {
+        let key: String
+        if case let .service(name, type, domain, _) = endpoint {
+            key = "\(name).\(type).\(domain)"
+        } else {
+            key = String(describing: endpoint)
+        }
+
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+
+        let suffix = String(format: "%012llx", hash & 0x0000FFFFFFFFFFFF)
+        return UUID(uuidString: "00000000-0000-4000-8000-\(suffix)")!
     }
 }
 

@@ -63,7 +63,7 @@ Grant permissions when prompted:
 - **Input Monitoring** on any Mac that captures global input.
 - **Accessibility** on any Mac that injects input locally.
 
-BridgeFlow discovers other running BridgeFlow instances on the local network. If a Mac does not appear, make sure BridgeFlow is started on that Mac and Local Network access is allowed by macOS.
+BridgeFlow discovers other running BridgeFlow instances on the local network. If a Mac does not appear, make sure BridgeFlow is open on that Mac and Local Network access is allowed by macOS.
 
 You can also connect manually:
 

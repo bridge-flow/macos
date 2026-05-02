@@ -194,6 +194,28 @@ func testDiscoveredPeerParsesBonjourTXTRecord() throws {
     try expect(discovered.endpointDescription.contains("_bridgeflow._tcp"), "Endpoint should describe the BridgeFlow Bonjour service")
 }
 
+func testDiscoveredPeerFallsBackWhenBonjourTXTRecordIsMissing() throws {
+    let endpoint = NWEndpoint.service(
+        name: "Remote Mac",
+        type: PeerDiscovery.serviceType,
+        domain: "local",
+        interface: nil
+    )
+
+    let first = try require(
+        DiscoveredPeer(endpoint: endpoint, txtRecord: NWTXTRecord([:])),
+        "Expected Bonjour endpoint without TXT to still produce a peer"
+    )
+    let second = try require(
+        DiscoveredPeer(endpoint: endpoint, txtRecord: NWTXTRecord([:])),
+        "Expected fallback id to be stable"
+    )
+
+    try expectEqual(first.id, second.id, "Fallback peer id should be deterministic")
+    try expectEqual(first.name, "Remote Mac", "Fallback peer should use service name")
+    try expect(first.hasStableID == false, "Fallback peer should be marked as temporary")
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
@@ -203,7 +225,8 @@ let tests: [(String, () throws -> Void)] = [
     ("modifier release tracking", testModifierStateTrackerReleasesTrackedKeysAndModifiers),
     ("key event normalisation", testEventNormalizerBuildsKeyDownFromCGEvent),
     ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent),
-    ("bonjour discovery metadata", testDiscoveredPeerParsesBonjourTXTRecord)
+    ("bonjour discovery metadata", testDiscoveredPeerParsesBonjourTXTRecord),
+    ("bonjour discovery fallback", testDiscoveredPeerFallsBackWhenBonjourTXTRecordIsMissing)
 ]
 
 var failures: [String] = []

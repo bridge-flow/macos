@@ -69,6 +69,7 @@ public final class AppState: ObservableObject {
         self.pairingManager = PairingManager(codeProvider: { resolvedSettings.pairingCode })
         self.edgeDetector = MouseEdgeDetector(configuration: resolvedSettings.edgeConfiguration())
         startDiscovery()
+        startServer()
     }
 
     public var localPeerInfo: PeerInfo {
@@ -204,6 +205,10 @@ public final class AppState: ObservableObject {
     }
 
     private func startServer() {
+        guard server == nil else {
+            return
+        }
+
         do {
             let server = PeerServer(port: UInt16(settings.port), advertisedPeerInfo: localPeerInfo)
             server.onConnection = { [weak self] connection in
@@ -357,18 +362,7 @@ public final class AppState: ObservableObject {
     private func handle(_ message: BridgeMessage, from connection: PeerConnection) {
         switch message {
         case let .hello(peer):
-            peerIDsByConnectionID[connection.id] = peer.id
-            connections.removeValue(forKey: connection.id)
-            connections[peer.id] = connection
-            upsertPeer(PeerSnapshot(
-                id: peer.id,
-                name: peer.name,
-                endpoint: connection.endpointDescription,
-                status: .connected,
-                trusted: pairingManager.isTrusted(peer.id)
-            ))
-            connectionStatus = .connected
-            logger.info("Peer hello received from \(peer.name)")
+            handleHello(peer, from: connection)
         case let .input(event):
             injector.inject(event)
         case let .control(command):
@@ -385,6 +379,32 @@ public final class AppState: ObservableObject {
         case let .error(message):
             reportError(message)
         }
+    }
+
+    private func handleHello(_ peer: PeerInfo, from connection: PeerConnection) {
+        let previousPeerID = peerIDsByConnectionID[connection.id] ?? connection.id
+        peerIDsByConnectionID[connection.id] = peer.id
+        connections.removeValue(forKey: connection.id)
+        removeTemporaryPeerIfNeeded(previousPeerID, realPeerID: peer.id)
+        connections[peer.id] = connection
+        upsertPeer(PeerSnapshot(
+            id: peer.id,
+            name: peer.name,
+            endpoint: connection.endpointDescription,
+            status: .connected,
+            trusted: pairingManager.isTrusted(peer.id)
+        ))
+        connectionStatus = .connected
+        logger.info("Peer hello received from \(peer.name)")
+    }
+
+    private func removeTemporaryPeerIfNeeded(_ temporaryPeerID: UUID, realPeerID: UUID) {
+        guard temporaryPeerID != realPeerID else {
+            return
+        }
+        connections.removeValue(forKey: temporaryPeerID)
+        discoveredEndpoints.removeValue(forKey: temporaryPeerID)
+        peers.removeAll { $0.id == temporaryPeerID }
     }
 
     private func handle(_ command: BridgeControlCommand, from connection: PeerConnection) {
@@ -457,6 +477,9 @@ public final class AppState: ObservableObject {
 
     private func handleDiscovered(_ peer: DiscoveredPeer) {
         guard peer.id != localPeerID else {
+            return
+        }
+        guard peer.hasStableID || peer.name != localPeerInfo.name else {
             return
         }
 
