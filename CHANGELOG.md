@@ -4,6 +4,7 @@ BridgeFlow follows small, explicit releases. Dates use UTC.
 
 ## Unreleased
 
+- Added Bonjour discovery for local BridgeFlow peers.
 - Added signed and notarised macOS release packaging with zip and DMG artefacts.
 - Added CI and draft release workflows.
 - Added SwiftPM packaging for `BridgeFlow.app`.

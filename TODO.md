@@ -5,12 +5,12 @@
 - Input capture.
 - Event injection.
 - Manual peer connection.
+- Bonjour discovery.
 - Edge switching.
 - SwiftUI app UI.
 
 ## Next
 
-- Bonjour discovery.
 - Encrypted pairing.
 - Clipboard sync.
 - iPad companion app.

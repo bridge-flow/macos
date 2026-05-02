@@ -13,7 +13,7 @@ struct PeersView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                IconHeader(title: "Peers", subtitle: "Connect trusted Macs on the local network.")
+                IconHeader(title: "Peers", subtitle: "Discovered and connected Macs on the local network.")
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 14) {
@@ -37,7 +37,7 @@ struct PeersView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Connected Macs")
+                    Text("Local Macs")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(BridgeFlowPalette.textPrimary)
 
@@ -55,6 +55,7 @@ struct PeersView: View {
                         ForEach(appState.peers) { peer in
                             PeerCard(
                                 peer: peer,
+                                connect: { appState.connect(peerID: peer.id) },
                                 disconnect: { appState.disconnect(peerID: peer.id) },
                                 trust: { appState.trust(peerID: peer.id) },
                                 removeTrust: { appState.removeTrust(peerID: peer.id) }

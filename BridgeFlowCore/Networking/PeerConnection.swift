@@ -20,6 +20,12 @@ public final class PeerConnection: Identifiable {
         self.queue = queue ?? DispatchQueue(label: "bridgeflow.peer.connection.\(UUID().uuidString)")
     }
 
+    public init(endpoint: NWEndpoint, queue: DispatchQueue? = nil) {
+        self.connection = NWConnection(to: endpoint, using: .tcp)
+        self.endpointDescription = String(describing: endpoint)
+        self.queue = queue ?? DispatchQueue(label: "bridgeflow.peer.connection.\(UUID().uuidString)")
+    }
+
     public init(connection: NWConnection, queue: DispatchQueue? = nil) {
         self.connection = connection
         self.endpointDescription = String(describing: connection.endpoint)

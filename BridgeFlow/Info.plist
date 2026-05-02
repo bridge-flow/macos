@@ -24,6 +24,10 @@
   <string>Open source BridgeFlow contributors</string>
   <key>NSLocalNetworkUsageDescription</key>
   <string>BridgeFlow connects to trusted Macs on your local network.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_bridgeflow._tcp</string>
+  </array>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
 </dict>

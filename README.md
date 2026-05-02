@@ -18,6 +18,7 @@ The project is early, practical, and intentionally small: Swift, SwiftUI, AppKit
 - Host, Client and Both modes.
 - Global keyboard and mouse capture on the host with `CGEventTap`.
 - Local keyboard and mouse injection on the client with `CGEventPost`.
+- Bonjour discovery for BridgeFlow peers on the local network.
 - Manual peer connection by IP address and port.
 - Newline-delimited JSON protocol that is easy to inspect while developing.
 - Layout configuration for left, right, above and below.
@@ -62,7 +63,9 @@ Grant permissions when prompted:
 - **Input Monitoring** on any Mac that captures global input.
 - **Accessibility** on any Mac that injects input locally.
 
-Then connect manually:
+BridgeFlow discovers other running BridgeFlow instances on the local network. If a Mac does not appear, make sure BridgeFlow is started on that Mac and Local Network access is allowed by macOS.
+
+You can also connect manually:
 
 1. Find the client Mac's local IP address.
 2. On the host Mac, open **Peers**.
@@ -86,7 +89,7 @@ The app shows the current permission state in the Permissions view and links dir
 The MVP is designed for trusted local networks.
 
 - Default port: `48765`.
-- Manual IP connection only.
+- Bonjour discovery plus manual IP connection.
 - Manual pairing code before trusting a peer.
 - Trusted peer IDs are stored in UserDefaults.
 - Transport encryption is planned, but not implemented yet.
@@ -138,7 +141,7 @@ GitHub Actions will build the app, sign and notarise it, upload release artefact
 
 - iPad global input injection is not supported by public iPadOS APIs.
 - Universal Control APIs are private and are not used.
-- The MVP uses manual IP pairing.
+- The MVP still supports manual IP pairing when discovery is unavailable.
 - Encryption is planned but not implemented yet.
 - Clipboard sync is not part of the MVP.
 

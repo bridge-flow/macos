@@ -4,6 +4,7 @@ import SwiftUI
 
 struct PeerCard: View {
     let peer: PeerSnapshot
+    let connect: () -> Void
     let disconnect: () -> Void
     let trust: () -> Void
     let removeTrust: () -> Void
@@ -48,7 +49,11 @@ struct PeerCard: View {
                     peer.trusted ? removeTrust() : trust()
                 }
 
-                Button("Disconnect", action: disconnect)
+                if peer.status == .available || peer.status == .stopped {
+                    Button("Connect", action: connect)
+                } else {
+                    Button("Disconnect", action: disconnect)
+                }
             }
         }
     }

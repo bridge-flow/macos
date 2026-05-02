@@ -8,12 +8,18 @@ public final class PeerServer {
 
     private let port: UInt16
     private let queue: DispatchQueue
+    private let advertisedPeerInfo: PeerInfo?
     private var listener: NWListener?
 
     public private(set) var isRunning = false
 
-    public init(port: UInt16 = 48_765, queue: DispatchQueue = DispatchQueue(label: "bridgeflow.peer.server")) {
+    public init(
+        port: UInt16 = 48_765,
+        advertisedPeerInfo: PeerInfo? = nil,
+        queue: DispatchQueue = DispatchQueue(label: "bridgeflow.peer.server")
+    ) {
         self.port = port
+        self.advertisedPeerInfo = advertisedPeerInfo
         self.queue = queue
     }
 
@@ -24,7 +30,9 @@ public final class PeerServer {
 
         let nwPort = NWEndpoint.Port(rawValue: port) ?? 48_765
         let listener = try NWListener(using: .tcp, on: nwPort)
-        listener.service = nil
+        if let advertisedPeerInfo {
+            listener.service = PeerDiscovery.service(for: advertisedPeerInfo)
+        }
 
         listener.stateUpdateHandler = { [weak self] state in
             self?.onStateChange?(state)

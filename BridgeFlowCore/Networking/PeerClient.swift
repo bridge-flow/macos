@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 public final class PeerClient {
     public private(set) var connection: PeerConnection?
@@ -8,6 +9,14 @@ public final class PeerClient {
     @discardableResult
     public func connect(host: String, port: UInt16) -> PeerConnection {
         let connection = PeerConnection(host: host, port: port)
+        self.connection = connection
+        connection.start()
+        return connection
+    }
+
+    @discardableResult
+    public func connect(endpoint: NWEndpoint) -> PeerConnection {
+        let connection = PeerConnection(endpoint: endpoint)
         self.connection = connection
         connection.start()
         return connection

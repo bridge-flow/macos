@@ -2,6 +2,7 @@ import Foundation
 
 public enum ConnectionStatus: String, Codable, CaseIterable, Identifiable, Sendable {
     case stopped
+    case available
     case waiting
     case connecting
     case connected
@@ -14,6 +15,8 @@ public enum ConnectionStatus: String, Codable, CaseIterable, Identifiable, Senda
         switch self {
         case .stopped:
             "Stopped"
+        case .available:
+            "Available"
         case .waiting:
             "Waiting"
         case .connecting:

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Network
 @testable import BridgeFlowCore
 
 struct TestFailure: Error, CustomStringConvertible {
@@ -166,6 +167,33 @@ func testEventNormalizerBuildsMouseMoveDeltaFromCGEvent() throws {
     )
 }
 
+func testDiscoveredPeerParsesBonjourTXTRecord() throws {
+    let peer = PeerInfo(
+        id: UUID(uuidString: "99999999-AAAA-BBBB-CCCC-DDDDDDDDDDDD")!,
+        name: "Studio Mac",
+        hostname: "studio.local",
+        appVersion: "0.1.0",
+        role: .both
+    )
+    let endpoint = NWEndpoint.service(
+        name: "Studio Mac",
+        type: PeerDiscovery.serviceType,
+        domain: "local",
+        interface: nil
+    )
+
+    let discovered = try require(
+        DiscoveredPeer(endpoint: endpoint, txtRecord: DiscoveredPeer.txtRecord(for: peer)),
+        "Expected Bonjour TXT record to decode into a discovered peer"
+    )
+
+    try expectEqual(discovered.id, peer.id, "Discovered peer should keep the advertised stable id")
+    try expectEqual(discovered.name, peer.name, "Discovered peer should keep the advertised name")
+    try expectEqual(discovered.hostname, peer.hostname, "Discovered peer should keep hostname")
+    try expectEqual(discovered.role, peer.role, "Discovered peer should keep mode")
+    try expect(discovered.endpointDescription.contains("_bridgeflow._tcp"), "Endpoint should describe the BridgeFlow Bonjour service")
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
@@ -174,7 +202,8 @@ let tests: [(String, () throws -> Void)] = [
     ("edge cancellation", testMouseEdgeDetectorCancelsWhenMovementLeavesEdge),
     ("modifier release tracking", testModifierStateTrackerReleasesTrackedKeysAndModifiers),
     ("key event normalisation", testEventNormalizerBuildsKeyDownFromCGEvent),
-    ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent)
+    ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent),
+    ("bonjour discovery metadata", testDiscoveredPeerParsesBonjourTXTRecord)
 ]
 
 var failures: [String] = []

@@ -49,8 +49,10 @@ public final class AppState: ObservableObject {
     private var eventTap: EventTapManager?
     private var server: PeerServer?
     private var client: PeerClient?
+    private var discovery: PeerDiscovery?
     private var connections: [UUID: PeerConnection] = [:]
     private var peerIDsByConnectionID: [UUID: UUID] = [:]
+    private var discoveredEndpoints: [UUID: NWEndpoint] = [:]
 
     public init(
         settings: SettingsStore? = nil,
@@ -66,6 +68,7 @@ public final class AppState: ObservableObject {
         self.localPeerID = UserDefaults.standard.bridgeFlowLocalPeerID()
         self.pairingManager = PairingManager(codeProvider: { resolvedSettings.pairingCode })
         self.edgeDetector = MouseEdgeDetector(configuration: resolvedSettings.edgeConfiguration())
+        startDiscovery()
     }
 
     public var localPeerInfo: PeerInfo {
@@ -83,14 +86,14 @@ public final class AppState: ObservableObject {
             return
         }
 
+        startDiscovery()
         edgeDetector = MouseEdgeDetector(configuration: settings.edgeConfiguration())
         let permissionSnapshot = permissions.refresh()
 
+        startServer()
+
         if settings.defaultMode == .host || settings.defaultMode == .both {
-            startServer()
             startEventTapIfPermitted(permissionSnapshot)
-        } else if settings.defaultMode == .client {
-            connectionStatus = .waiting
         }
 
         isRunning = true
@@ -121,7 +124,7 @@ public final class AppState: ObservableObject {
         isRunning = false
         peers = peers.map { peer in
             var updated = peer
-            updated.status = .stopped
+            updated.status = discoveredEndpoints[peer.id] == nil ? .stopped : .available
             return updated
         }
         logger.info("BridgeFlow stopped")
@@ -145,6 +148,23 @@ public final class AppState: ObservableObject {
         connection.send(.hello(peer: localPeerInfo))
         upsertPeer(PeerSnapshot(id: connection.id, name: host, endpoint: connection.endpointDescription, status: .connecting))
         logger.info("Connecting to \(host):\(port)")
+    }
+
+    public func connect(peerID: UUID) {
+        guard let endpoint = discoveredEndpoints[peerID] else {
+            reportError("Discovered peer endpoint is no longer available")
+            return
+        }
+
+        connectionStatus = .connecting
+        markPeer(peerID, status: .connecting)
+
+        let client = PeerClient()
+        let connection = client.connect(endpoint: endpoint)
+        self.client = client
+        configure(connection, peerID: peerID)
+        connection.send(.hello(peer: localPeerInfo))
+        logger.info("Connecting to discovered peer \(endpoint)")
     }
 
     public func disconnect(peerID: UUID) {
@@ -185,7 +205,7 @@ public final class AppState: ObservableObject {
 
     private func startServer() {
         do {
-            let server = PeerServer(port: UInt16(settings.port))
+            let server = PeerServer(port: UInt16(settings.port), advertisedPeerInfo: localPeerInfo)
             server.onConnection = { [weak self] connection in
                 Task { @MainActor in
                     self?.configure(connection)
@@ -210,6 +230,38 @@ public final class AppState: ObservableObject {
         } catch {
             reportError("Unable to start server: \(error.localizedDescription)")
         }
+    }
+
+    private func startDiscovery() {
+        guard discovery == nil else {
+            return
+        }
+
+        let discovery = PeerDiscovery()
+        discovery.onPeerFound = { [weak self] peer in
+            Task { @MainActor in
+                self?.handleDiscovered(peer)
+            }
+        }
+        discovery.onPeerLost = { [weak self] peerID in
+            Task { @MainActor in
+                self?.handleLostPeer(peerID)
+            }
+        }
+        discovery.onStateChange = { [weak self] state in
+            Task { @MainActor in
+                if case .ready = state {
+                    self?.logger.info("Bonjour discovery ready")
+                }
+            }
+        }
+        discovery.onError = { [weak self] error in
+            Task { @MainActor in
+                self?.logger.warning("Bonjour discovery failed: \(error.localizedDescription)")
+            }
+        }
+        discovery.start()
+        self.discovery = discovery
     }
 
     private func startEventTapIfPermitted(_ snapshot: PermissionSnapshot) {
@@ -277,9 +329,13 @@ public final class AppState: ObservableObject {
         logger.info("Switched to peer via \(edge.displayName.lowercased()) edge")
     }
 
-    private func configure(_ connection: PeerConnection) {
-        connections[connection.id] = connection
-        upsertPeer(PeerSnapshot(id: connection.id, name: "Unknown Mac", endpoint: connection.endpointDescription, status: .connecting))
+    private func configure(_ connection: PeerConnection, peerID: UUID? = nil) {
+        let snapshotID = peerID ?? connection.id
+        connections[snapshotID] = connection
+        if let peerID {
+            peerIDsByConnectionID[connection.id] = peerID
+        }
+        upsertPeer(PeerSnapshot(id: snapshotID, name: peerName(for: snapshotID), endpoint: connection.endpointDescription, status: .connecting))
 
         connection.onMessage = { [weak self] message, connection in
             Task { @MainActor in
@@ -397,6 +453,36 @@ public final class AppState: ObservableObject {
         } else {
             peers.append(peer)
         }
+    }
+
+    private func handleDiscovered(_ peer: DiscoveredPeer) {
+        guard peer.id != localPeerID else {
+            return
+        }
+
+        discoveredEndpoints[peer.id] = peer.endpoint
+
+        if connections[peer.id] == nil {
+            upsertPeer(PeerSnapshot(
+                id: peer.id,
+                name: peer.name,
+                endpoint: peer.endpointDescription,
+                status: .available,
+                trusted: pairingManager.isTrusted(peer.id)
+            ))
+        }
+    }
+
+    private func handleLostPeer(_ peerID: UUID) {
+        discoveredEndpoints.removeValue(forKey: peerID)
+        guard connections[peerID] == nil else {
+            return
+        }
+        peers.removeAll { $0.id == peerID }
+    }
+
+    private func peerName(for peerID: UUID) -> String {
+        peers.first(where: { $0.id == peerID })?.name ?? "Unknown Mac"
     }
 
     private func markPeer(_ peerID: UUID, status: ConnectionStatus? = nil, trusted: Bool? = nil) {

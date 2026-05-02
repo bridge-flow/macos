@@ -28,6 +28,8 @@ struct StatusBadge: View {
         switch status {
         case .active, .connected:
             BridgeFlowPalette.success
+        case .available:
+            BridgeFlowPalette.cyan
         case .waiting, .connecting:
             BridgeFlowPalette.warning
         case .error:
