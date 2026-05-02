@@ -123,8 +123,10 @@ public final class AppState: ObservableObject {
         self.pairingManager = PairingManager(codeProvider: { resolvedSettings.pairingCode })
         self.edgeDetector = MouseEdgeDetector(configuration: resolvedSettings.edgeConfiguration())
         refreshPeripherals()
-        startDiscovery()
-        startServer()
+        if resolvedSettings.permissionsOnboardingCompleted {
+            startDiscovery()
+            startServer()
+        }
     }
 
     public var localPeerInfo: PeerInfo {
@@ -261,6 +263,12 @@ public final class AppState: ObservableObject {
         localPeripherals = peripheralProvider.connectedInputDevices()
         broadcastState()
         logger.info("Refreshed peripheral inventory: \(localPeripherals.count) input devices")
+    }
+
+    public func requestLocalNetworkAccess() {
+        startDiscovery()
+        startServer()
+        logger.info("Requested Local Network access")
     }
 
     public func updatePeerPlacement(peerID: UUID, x: Double, y: Double) {

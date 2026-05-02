@@ -36,6 +36,12 @@ struct PermissionsView: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
+
+                Button {
+                    appState.settings.permissionsOnboardingCompleted = false
+                } label: {
+                    Label("Run Permission Setup", systemImage: "sparkles")
+                }
             }
             .padding(28)
         }

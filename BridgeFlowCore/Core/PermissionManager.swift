@@ -46,6 +46,10 @@ public final class PermissionManager: ObservableObject {
         openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     }
 
+    public func openLocalNetworkSettings() {
+        openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
+    }
+
     private func openSettingsPane(_ urlString: String) {
         guard let url = URL(string: urlString) else {
             return

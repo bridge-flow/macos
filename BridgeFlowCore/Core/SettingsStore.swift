@@ -14,6 +14,7 @@ public final class SettingsStore: ObservableObject {
     @Published public var remotePosition: ScreenEdge { didSet { defaults.set(remotePosition.rawValue, forKey: Keys.remotePosition) } }
     @Published public var showDebugLogs: Bool { didSet { defaults.set(showDebugLogs, forKey: Keys.showDebugLogs) } }
     @Published public var startOnLaunch: Bool { didSet { defaults.set(startOnLaunch, forKey: Keys.startOnLaunch) } }
+    @Published public var permissionsOnboardingCompleted: Bool { didSet { defaults.set(permissionsOnboardingCompleted, forKey: Keys.permissionsOnboardingCompleted) } }
 
     private let defaults: UserDefaults
 
@@ -31,6 +32,7 @@ public final class SettingsStore: ObservableObject {
         self.remotePosition = ScreenEdge(rawValue: defaults.string(forKey: Keys.remotePosition) ?? "") ?? .right
         self.showDebugLogs = defaults.bool(forKey: Keys.showDebugLogs)
         self.startOnLaunch = defaults.bool(forKey: Keys.startOnLaunch)
+        self.permissionsOnboardingCompleted = defaults.bool(forKey: Keys.permissionsOnboardingCompleted)
     }
 
     public func edgeConfiguration() -> MouseEdgeConfiguration {
@@ -58,5 +60,6 @@ public final class SettingsStore: ObservableObject {
         static let remotePosition = "bridgeflow.remotePosition"
         static let showDebugLogs = "bridgeflow.showDebugLogs"
         static let startOnLaunch = "bridgeflow.startOnLaunch"
+        static let permissionsOnboardingCompleted = "bridgeflow.permissionsOnboardingCompleted"
     }
 }

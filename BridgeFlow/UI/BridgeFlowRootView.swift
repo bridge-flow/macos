@@ -39,8 +39,15 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
 
 struct BridgeFlowRootView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject private var settings: SettingsStore
     @State private var selection: BridgeFlowSection? = .dashboard
     @State private var didAutoStart = false
+    @State private var showPermissionOnboarding = false
+
+    init(appState: AppState) {
+        self.appState = appState
+        _settings = ObservedObject(wrappedValue: appState.settings)
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -78,11 +85,25 @@ struct BridgeFlowRootView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showPermissionOnboarding) {
+            PermissionOnboardingView(appState: appState, isPresented: $showPermissionOnboarding)
+                .frame(width: 720, height: 560)
+                .interactiveDismissDisabled()
+        }
         .task {
             guard !didAutoStart else { return }
             didAutoStart = true
+            if !settings.permissionsOnboardingCompleted {
+                showPermissionOnboarding = true
+                return
+            }
             if appState.settings.startOnLaunch {
                 appState.start()
+            }
+        }
+        .onChange(of: settings.permissionsOnboardingCompleted) { completed in
+            if !completed {
+                showPermissionOnboarding = true
             }
         }
     }

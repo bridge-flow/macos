@@ -332,6 +332,15 @@ func testBridgeStateUpdateRoundTripsSharedLayout() throws {
     try expectEqual(decoded.layout, layout, "State updates should preserve shared machine layout")
 }
 
+func testPermissionOnboardingStepsUseExpectedOrderAndCopy() throws {
+    let steps = PermissionOnboardingStep.allCases
+
+    try expectEqual(steps.map(\.id), ["accessibility", "inputMonitoring", "localNetwork"], "Onboarding should request permissions in the safest order")
+    try expectEqual(PermissionOnboardingStep.accessibility.title, "Accessibility", "Accessibility step should use the macOS permission name")
+    try expectEqual(PermissionOnboardingStep.inputMonitoring.primaryActionTitle, "Request Input Monitoring", "Input Monitoring step should expose the request action")
+    try expectEqual(PermissionOnboardingStep.localNetwork.systemImage, "network", "Local Network step should use the network symbol")
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
@@ -348,7 +357,8 @@ let tests: [(String, () throws -> Void)] = [
     ("state update peripherals", testBridgeStateUpdateRoundTripsPeripherals),
     ("shared layout translation", testMachineLayoutTranslatesSnapshotRelativeToReceivingMac),
     ("shared layout edge mapping", testMachineLayoutMapsDraggedPlacementToNearestEdge),
-    ("state update shared layout", testBridgeStateUpdateRoundTripsSharedLayout)
+    ("state update shared layout", testBridgeStateUpdateRoundTripsSharedLayout),
+    ("permission onboarding steps", testPermissionOnboardingStepsUseExpectedOrderAndCopy)
 ]
 
 var failures: [String] = []
