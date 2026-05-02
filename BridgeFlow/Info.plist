@@ -8,6 +8,8 @@
   <string>BridgeFlow</string>
   <key>CFBundleIdentifier</key>
   <string>dev.bridgeflow.app</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleName</key>
   <string>BridgeFlow</string>
   <key>CFBundlePackageType</key>

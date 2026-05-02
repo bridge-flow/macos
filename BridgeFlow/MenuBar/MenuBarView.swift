@@ -8,7 +8,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Image("BridgeFlowIcon")
+                Image("BridgeFlowIcon", bundle: .module)
                     .resizable()
                     .frame(width: 34, height: 34)
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
