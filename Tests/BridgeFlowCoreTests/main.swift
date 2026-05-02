@@ -128,13 +128,53 @@ func testModifierStateTrackerReleasesTrackedKeysAndModifiers() throws {
     try expectEqual(tracker.activeModifiers, [], "Active modifiers should be cleared")
 }
 
+func testEventNormalizerBuildsKeyDownFromCGEvent() throws {
+    let event = try require(
+        CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true),
+        "Expected synthetic key event"
+    )
+    event.flags = [.maskCommand, .maskShift]
+
+    let normalised = EventNormalizer.normalise(event: event, type: .keyDown, timestamp: 12)
+
+    try expectEqual(
+        normalised,
+        .keyDown(keyCode: 53, modifiers: [.command, .shift], timestamp: 12),
+        "Key events should preserve key code and modifiers"
+    )
+}
+
+func testEventNormalizerBuildsMouseMoveDeltaFromCGEvent() throws {
+    let event = try require(
+        CGEvent(
+            mouseEventSource: nil,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: CGPoint(x: 100, y: 100),
+            mouseButton: .left
+        ),
+        "Expected synthetic mouse event"
+    )
+    event.setDoubleValueField(.mouseEventDeltaX, value: 4)
+    event.setDoubleValueField(.mouseEventDeltaY, value: -7)
+
+    let normalised = EventNormalizer.normalise(event: event, type: .mouseMoved, timestamp: 20)
+
+    try expectEqual(
+        normalised,
+        .mouseMove(dx: 4, dy: -7, timestamp: 20),
+        "Mouse move events should use CoreGraphics deltas"
+    )
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
     ("pairing code trust", testPairingManagerTrustsPeerOnlyWhenCodeMatches),
     ("right edge switching", testMouseEdgeDetectorSwitchesRightAfterPersistentMovementAtEdge),
     ("edge cancellation", testMouseEdgeDetectorCancelsWhenMovementLeavesEdge),
-    ("modifier release tracking", testModifierStateTrackerReleasesTrackedKeysAndModifiers)
+    ("modifier release tracking", testModifierStateTrackerReleasesTrackedKeysAndModifiers),
+    ("key event normalisation", testEventNormalizerBuildsKeyDownFromCGEvent),
+    ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent)
 ]
 
 var failures: [String] = []
