@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Resolve version
         id: version
@@ -126,7 +126,7 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: "BridgeFlow-${{ steps.version.outputs.value }}"
           path: |
@@ -135,7 +135,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: "${{ steps.version.outputs.value }}"
           target_commitish: "${{ github.sha }}"
