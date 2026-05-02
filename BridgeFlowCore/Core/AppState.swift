@@ -58,7 +58,7 @@ public enum InputCaptureStatus: String, Identifiable, Sendable {
         case .running:
             "Keyboard and pointer input are ready for edge switching."
         case .unavailable:
-            "macOS refused the event tap. Check Input Monitoring, then restart BridgeFlow."
+            "macOS still refused the event tap after the permission check passed. Refresh again, and if it stays unavailable, quit and reopen BridgeFlow."
         }
     }
 }
@@ -269,7 +269,7 @@ public final class AppState: ObservableObject {
     public func refreshPermissionsAndResumeInputCaptureIfPossible() -> PermissionSnapshot {
         let snapshot = permissions.refresh()
         guard isRunning,
-              inputCaptureStatus == .permissionMissing,
+              inputCaptureStatus == .permissionMissing || inputCaptureStatus == .unavailable,
               settings.defaultMode == .host || settings.defaultMode == .both else {
             return snapshot
         }
@@ -394,6 +394,9 @@ public final class AppState: ObservableObject {
             logger.warning("Input capture permissions are missing")
             return
         }
+
+        eventTap?.stop()
+        eventTap = nil
 
         let tap = EventTapManager { [weak self] input, type in
             guard let self else {
