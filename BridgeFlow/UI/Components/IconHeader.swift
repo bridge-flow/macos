@@ -6,7 +6,7 @@ struct IconHeader: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            Image("BridgeFlowIcon", bundle: .module)
+            Image("BridgeFlowIcon", bundle: BridgeFlowResources.bundle)
                 .resizable()
                 .interpolation(.high)
                 .frame(width: 58, height: 58)

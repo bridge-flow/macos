@@ -31,7 +31,7 @@ struct BridgeFlowApp: App {
         MenuBarExtra {
             MenuBarView(appState: appState)
         } label: {
-            Image("BridgeFlowIcon", bundle: .module)
+            Image("BridgeFlowIcon", bundle: BridgeFlowResources.bundle)
             Text("BridgeFlow")
         }
         .menuBarExtraStyle(.window)

@@ -29,7 +29,6 @@ chmod +x "$APP_BINARY"
 cp "$ROOT_DIR/BridgeFlow/Info.plist" "$INFO_PLIST"
 
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
-  cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/BridgeFlow_BridgeFlow.bundle"
   cp -R "$RESOURCE_BUNDLE" "$APP_CONTENTS/Resources/BridgeFlow_BridgeFlow.bundle"
 fi
 
