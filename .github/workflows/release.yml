@@ -1,0 +1,150 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build signed release
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate version
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+(\.[0-9]+){1,2}([-+][A-Za-z0-9.-]+)?$ ]]; then
+            echo "Release version must look like v0.1.0, got: $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Package app bundle
+        env:
+          CONFIGURATION: release
+        run: ./script/build_and_run.sh --package
+
+      - name: Import Apple signing certificate
+        env:
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          : "${APPLE_CERT_P12:?APPLE_CERT_P12 secret is required}"
+          : "${APPLE_CERT_PASSWORD:?APPLE_CERT_PASSWORD secret is required}"
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/bridgeflow-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/bridgeflow-developer-id.p12"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          trap 'rm -f "$CERTIFICATE_PATH"' EXIT
+
+          if ! printf '%s' "$APPLE_CERT_P12" | base64 --decode > "$CERTIFICATE_PATH" 2>/dev/null; then
+            printf '%s' "$APPLE_CERT_P12" | base64 -D > "$CERTIFICATE_PATH"
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$APPLE_CERT_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+      - name: Resolve Developer ID identity
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          : "${APPLE_TEAM_ID:?APPLE_TEAM_ID secret is required}"
+
+          SIGNING_IDENTITY="$(
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" |
+              sed -n "s/.*\"\(Developer ID Application: .*($APPLE_TEAM_ID)\)\".*/\1/p" |
+              head -n 1
+          )"
+
+          if [[ -z "$SIGNING_IDENTITY" ]]; then
+            echo "No Developer ID Application identity found for team $APPLE_TEAM_ID" >&2
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" >&2
+            exit 1
+          fi
+
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Sign, notarize and package release
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: ./script/release/package_signed_release.sh "${{ steps.version.outputs.value }}"
+
+      - name: Clean up signing keychain
+        if: always()
+        run: |
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: "BridgeFlow-${{ steps.version.outputs.value }}"
+          path: |
+            dist/BridgeFlow-${{ steps.version.outputs.value }}.zip
+            dist/BridgeFlow-${{ steps.version.outputs.value }}.dmg
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3.0.0
+        with:
+          tag_name: "${{ steps.version.outputs.value }}"
+          target_commitish: "${{ github.sha }}"
+          name: "BridgeFlow ${{ steps.version.outputs.value }}"
+          draft: true
+          prerelease: true
+          files: |
+            dist/BridgeFlow-${{ steps.version.outputs.value }}.zip
+            dist/BridgeFlow-${{ steps.version.outputs.value }}.dmg
+          body: |
+            BridgeFlow ${{ steps.version.outputs.value }}
+
+            This draft release contains signed and notarized macOS artifacts built from the tagged source.
+
+            Install by downloading the DMG and dragging `BridgeFlow.app` to `/Applications`, or by downloading the zip and moving `BridgeFlow.app` manually.

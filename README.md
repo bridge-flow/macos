@@ -1,6 +1,7 @@
 # BridgeFlow
 
 [![CI](https://github.com/bridge-flow/macos/actions/workflows/ci.yml/badge.svg)](https://github.com/bridge-flow/macos/actions/workflows/ci.yml)
+[![Release](https://github.com/bridge-flow/macos/actions/workflows/release.yml/badge.svg)](https://github.com/bridge-flow/macos/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black.svg)
 ![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange.svg)
@@ -106,7 +107,32 @@ swift test
 swift build
 ```
 
-CI runs `swift test` and `swift build` on every push.
+Build a distributable app bundle:
+
+```bash
+./script/build_and_run.sh --package
+```
+
+CI runs `swift test` and `swift build` on every push. The release workflow runs on tags matching `v*` and creates a draft GitHub release with signed and notarised zip and DMG artefacts.
+
+## Release
+
+The release workflow requires these repository secrets:
+
+- `APPLE_CERT_P12`: base64-encoded Developer ID Application `.p12` certificate.
+- `APPLE_CERT_PASSWORD`: password for the `.p12` certificate.
+- `APPLE_TEAM_ID`: Apple Developer Team ID for the certificate.
+- `APPLE_ID`: Apple ID used with `notarytool`.
+- `APPLE_APP_PASSWORD`: app-specific password for notarisation.
+
+Create and push a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions will build the app, sign and notarise it, upload release artefacts and create a draft release. Review the generated notes, test the DMG on a clean Mac, then publish the release manually.
 
 ## Limitations
 
