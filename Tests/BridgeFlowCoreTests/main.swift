@@ -113,6 +113,12 @@ func testMouseEdgeDetectorCancelsWhenMovementLeavesEdge() throws {
     ) == nil, "Leaving the edge should cancel switching")
 }
 
+func testScreenEdgeDescribesRemotePlacementAndSwitchInstruction() throws {
+    try expectEqual(ScreenEdge.right.placementDescription, "Remote Mac is to the right of this Mac", "Right edge placement text should be explicit")
+    try expectEqual(ScreenEdge.right.activationInstruction, "Move the pointer to the right edge of this Mac to switch", "Right edge instruction should tell the user where to move")
+    try expectEqual(ScreenEdge.above.compactPlacementLabel, "Remote above", "Above edge should have a compact label")
+}
+
 func testModifierStateTrackerReleasesTrackedKeysAndModifiers() throws {
     var tracker = ModifierStateTracker()
 
@@ -222,6 +228,7 @@ let tests: [(String, () throws -> Void)] = [
     ("pairing code trust", testPairingManagerTrustsPeerOnlyWhenCodeMatches),
     ("right edge switching", testMouseEdgeDetectorSwitchesRightAfterPersistentMovementAtEdge),
     ("edge cancellation", testMouseEdgeDetectorCancelsWhenMovementLeavesEdge),
+    ("screen edge copy", testScreenEdgeDescribesRemotePlacementAndSwitchInstruction),
     ("modifier release tracking", testModifierStateTrackerReleasesTrackedKeysAndModifiers),
     ("key event normalisation", testEventNormalizerBuildsKeyDownFromCGEvent),
     ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent),

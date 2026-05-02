@@ -42,7 +42,14 @@ struct DashboardView: View {
                     MetricCard(title: "Mode", value: settings.defaultMode.displayName, symbol: "rectangle.2.swap")
                     MetricCard(title: "Latency", value: latencyText, symbol: "speedometer")
                     MetricCard(title: "Permissions", value: permissionsText, symbol: "lock.shield")
+                    MetricCard(title: "Remote Position", value: settings.remotePosition.compactPlacementLabel, symbol: settings.remotePosition.arrowSystemImage)
                 }
+
+                LayoutHintCard(
+                    edge: settings.remotePosition,
+                    localName: appState.localPeerInfo.name,
+                    remoteName: appState.activePeerName == "Local Mac" ? "Remote Mac" : appState.activePeerName
+                )
 
                 if let lastError = appState.lastError {
                     GlassCard {

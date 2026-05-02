@@ -29,6 +29,12 @@ struct LayoutView: View {
                     }
                 }
 
+                LayoutHintCard(
+                    edge: settings.remotePosition,
+                    localName: appState.localPeerInfo.name,
+                    remoteName: appState.activePeerName == "Local Mac" ? "Remote Mac" : appState.activePeerName
+                )
+
                 GlassCard {
                     VStack(alignment: .leading, spacing: 18) {
                         Text("Edge switching")

@@ -21,6 +21,58 @@ public enum ScreenEdge: String, Codable, CaseIterable, Identifiable, Sendable {
             "Below"
         }
     }
+
+    public var compactPlacementLabel: String {
+        switch self {
+        case .left:
+            "Remote left"
+        case .right:
+            "Remote right"
+        case .above:
+            "Remote above"
+        case .below:
+            "Remote below"
+        }
+    }
+
+    public var placementDescription: String {
+        switch self {
+        case .left:
+            "Remote Mac is to the left of this Mac"
+        case .right:
+            "Remote Mac is to the right of this Mac"
+        case .above:
+            "Remote Mac is above this Mac"
+        case .below:
+            "Remote Mac is below this Mac"
+        }
+    }
+
+    public var activationInstruction: String {
+        switch self {
+        case .left:
+            "Move the pointer to the left edge of this Mac to switch"
+        case .right:
+            "Move the pointer to the right edge of this Mac to switch"
+        case .above:
+            "Move the pointer to the top edge of this Mac to switch"
+        case .below:
+            "Move the pointer to the bottom edge of this Mac to switch"
+        }
+    }
+
+    public var arrowSystemImage: String {
+        switch self {
+        case .left:
+            "arrow.left"
+        case .right:
+            "arrow.right"
+        case .above:
+            "arrow.up"
+        case .below:
+            "arrow.down"
+        }
+    }
 }
 
 public enum EdgeSwitchAction: Hashable, Sendable {

@@ -4,6 +4,7 @@ import SwiftUI
 
 struct PeerCard: View {
     let peer: PeerSnapshot
+    let remotePosition: ScreenEdge
     let connect: () -> Void
     let disconnect: () -> Void
     let trust: () -> Void
@@ -38,6 +39,7 @@ struct PeerCard: View {
                         if let latency = peer.latencyMs {
                             Text(String(format: "%.0f ms", latency))
                         }
+                        Text(remotePosition.compactPlacementLabel)
                     }
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(BridgeFlowPalette.textSecondary)

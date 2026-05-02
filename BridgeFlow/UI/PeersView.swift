@@ -55,6 +55,7 @@ struct PeersView: View {
                         ForEach(appState.peers) { peer in
                             PeerCard(
                                 peer: peer,
+                                remotePosition: settings.remotePosition,
                                 connect: { appState.connect(peerID: peer.id) },
                                 disconnect: { appState.disconnect(peerID: peer.id) },
                                 trust: { appState.trust(peerID: peer.id) },
