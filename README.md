@@ -31,11 +31,9 @@ The project is early, practical, and intentionally small: Swift, SwiftUI, AppKit
 ### Option 1: Download a release
 
 1. Open the [Releases](https://github.com/bridge-flow/macos/releases) page.
-2. Download the latest `BridgeFlow-<version>.zip`.
-3. Unzip it and move `BridgeFlow.app` to `/Applications`.
+2. Download the latest `BridgeFlow-<version>.dmg`.
+3. Open the DMG and drag `BridgeFlow.app` to `/Applications`.
 4. Open BridgeFlow on each Mac you want to connect.
-
-BridgeFlow is not notarised yet. Until signing and notarisation are in place, macOS may require Control-click > Open the first time you launch the app.
 
 ### Option 2: Build from source
 
@@ -115,9 +113,17 @@ Build a distributable app bundle:
 make package
 ```
 
-The CI workflow runs tests, builds the Swift package and packages `BridgeFlow.app` as an artefact. The release workflow runs on tags matching `v*` and creates a draft GitHub release with a zipped app bundle.
+The CI workflow runs tests, builds the Swift package and packages `BridgeFlow.app` as an artefact. The release workflow runs on tags matching `v*` and creates a draft GitHub release with signed and notarised zip and DMG artefacts.
 
 ## Release
+
+The release workflow requires these repository secrets:
+
+- `APPLE_CERT_P12`: base64-encoded Developer ID Application `.p12` certificate.
+- `APPLE_CERT_PASSWORD`: password for the `.p12` certificate.
+- `APPLE_TEAM_ID`: Apple Developer Team ID for the certificate.
+- `APPLE_ID`: Apple ID used with `notarytool`.
+- `APPLE_APP_PASSWORD`: app-specific password for notarisation.
 
 Create and push a version tag:
 
@@ -126,7 +132,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-GitHub Actions will build the app, upload an artefact and create a draft release. Review the generated notes, test the zip on a clean Mac, then publish the release manually.
+GitHub Actions will build the app, sign and notarise it, upload release artefacts and create a draft release. Review the generated notes, test the DMG on a clean Mac, then publish the release manually.
 
 ## Limitations
 
@@ -135,7 +141,6 @@ GitHub Actions will build the app, upload an artefact and create a draft release
 - The MVP uses manual IP pairing.
 - Encryption is planned but not implemented yet.
 - Clipboard sync is not part of the MVP.
-- Signing and notarisation are not wired up yet.
 
 ## Roadmap
 
