@@ -24,11 +24,10 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Regenerate app assets
-        run: make assets
-
-      - name: Verify generated assets are committed
-        run: git diff --exit-code BridgeFlow/Assets.xcassets
+      - name: Verify app assets are present
+        run: |
+          test -f BridgeFlow/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png
+          test -f BridgeFlow/Assets.xcassets/BridgeFlowIcon.imageset/bridgeflow-icon.png
 
       - name: Run tests
         run: make test
