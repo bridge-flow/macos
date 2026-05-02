@@ -9,7 +9,7 @@ public final class PermissionManager: ObservableObject {
 
     public init() {
         self.snapshot = PermissionSnapshot(
-            accessibilityGranted: AXIsProcessTrusted(),
+            accessibilityGranted: CGPreflightPostEventAccess(),
             inputMonitoringGranted: CGPreflightListenEventAccess()
         )
     }
@@ -17,17 +17,14 @@ public final class PermissionManager: ObservableObject {
     @discardableResult
     public func refresh() -> PermissionSnapshot {
         snapshot = PermissionSnapshot(
-            accessibilityGranted: AXIsProcessTrusted(),
+            accessibilityGranted: CGPreflightPostEventAccess(),
             inputMonitoringGranted: CGPreflightListenEventAccess()
         )
         return snapshot
     }
 
     public func requestAccessibility() {
-        let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
+        _ = CGRequestPostEventAccess()
         _ = refresh()
     }
 
