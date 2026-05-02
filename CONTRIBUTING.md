@@ -15,8 +15,8 @@ The project is intentionally conservative in the MVP:
 ```bash
 git clone git@github.com:bridge-flow/macos.git
 cd macos
-make test check build
-./script/build_and_run.sh
+swift test
+swift build
 ```
 
 ## Pull Requests
@@ -24,7 +24,8 @@ make test check build
 Before opening a pull request:
 
 ```bash
-make test check build
+swift test
+swift build
 ```
 
 Keep pull requests small enough to review. For user-facing changes, include screenshots or a short screen recording. For input, networking or permission changes, describe the Macs and macOS versions used for testing.
