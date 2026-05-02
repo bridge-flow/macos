@@ -222,6 +222,116 @@ func testDiscoveredPeerFallsBackWhenBonjourTXTRecordIsMissing() throws {
     try expect(first.hasStableID == false, "Fallback peer should be marked as temporary")
 }
 
+func testPeripheralDeviceBuildsStableIdentifierFromHardwareProperties() throws {
+    let first = PeripheralDevice(
+        vendorID: 1452,
+        productID: 834,
+        locationID: 1_024,
+        name: "Magic Keyboard",
+        manufacturer: "Apple",
+        kind: .keyboard,
+        transport: "Bluetooth",
+        isBuiltIn: false
+    )
+    let second = PeripheralDevice(
+        vendorID: 1452,
+        productID: 834,
+        locationID: 1_024,
+        name: "Magic Keyboard",
+        manufacturer: "Apple",
+        kind: .keyboard,
+        transport: "Bluetooth",
+        isBuiltIn: false
+    )
+
+    try expectEqual(first.id, second.id, "Peripheral IDs should be stable for the same hardware properties")
+    try expectEqual(first.name, "Magic Keyboard", "Peripheral name should preserve the HID product name")
+    try expectEqual(first.kind, .keyboard, "Peripheral kind should preserve the classified input type")
+}
+
+func testBridgeStateUpdateRoundTripsPeripherals() throws {
+    let keyboard = PeripheralDevice(
+        id: "hid:apple:keyboard",
+        name: "Magic Keyboard",
+        manufacturer: "Apple",
+        kind: .keyboard,
+        transport: "Bluetooth",
+        isBuiltIn: false
+    )
+    let update = BridgeStateUpdate(
+        activePeerId: nil,
+        connectionStatus: .connected,
+        latencyMs: 12,
+        permissionsStatus: PermissionSnapshot(accessibilityGranted: true, inputMonitoringGranted: true),
+        peripherals: [keyboard]
+    )
+
+    let data = try JSONEncoder().encode(update)
+    let decoded = try JSONDecoder().decode(BridgeStateUpdate.self, from: data)
+
+    try expectEqual(decoded.peripherals, [keyboard], "State updates should preserve peripheral inventory")
+}
+
+func testMachineLayoutTranslatesSnapshotRelativeToReceivingMac() throws {
+    let localID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+    let remoteID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let snapshot = MachineLayoutSnapshot(
+        originPeerID: localID,
+        placements: [
+            MachinePlacement(peerID: localID, name: "Studio Mac", x: 0, y: 0),
+            MachinePlacement(peerID: remoteID, name: "Desk Mac", x: 360, y: 40)
+        ]
+    )
+
+    let translated = snapshot.translated(relativeTo: remoteID)
+    let localPlacement = try require(translated.placement(for: localID), "Expected translated local placement")
+    let remotePlacement = try require(translated.placement(for: remoteID), "Expected translated remote placement")
+
+    try expectEqual(remotePlacement.x, 0, "Receiving Mac should be centred in its own layout")
+    try expectEqual(remotePlacement.y, 0, "Receiving Mac should be centred in its own layout")
+    try expectEqual(localPlacement.x, -360, "Sender should appear on the opposite horizontal side")
+    try expectEqual(localPlacement.y, -40, "Sender should preserve relative vertical offset")
+    try expectEqual(translated.edge(from: remoteID, to: localID), .left, "Translated layout should map the sender to the left edge")
+}
+
+func testMachineLayoutMapsDraggedPlacementToNearestEdge() throws {
+    let localID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+    let remoteID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let snapshot = MachineLayoutSnapshot(
+        originPeerID: localID,
+        placements: [
+            MachinePlacement(peerID: localID, name: "Studio Mac", x: 0, y: 0),
+            MachinePlacement(peerID: remoteID, name: "Desk Mac", x: 40, y: -280)
+        ]
+    )
+
+    try expectEqual(snapshot.edge(from: localID, to: remoteID), .below, "Dominant vertical placement should map to bottom edge")
+}
+
+func testBridgeStateUpdateRoundTripsSharedLayout() throws {
+    let localID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+    let remoteID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let layout = MachineLayoutSnapshot(
+        originPeerID: localID,
+        placements: [
+            MachinePlacement(peerID: localID, name: "Studio Mac", x: 0, y: 0),
+            MachinePlacement(peerID: remoteID, name: "Desk Mac", x: -340, y: 0)
+        ]
+    )
+    let update = BridgeStateUpdate(
+        activePeerId: nil,
+        connectionStatus: .connected,
+        latencyMs: nil,
+        permissionsStatus: PermissionSnapshot(accessibilityGranted: true, inputMonitoringGranted: true),
+        layout: layout
+    )
+
+    let data = try JSONEncoder().encode(update)
+    let decoded = try JSONDecoder().decode(BridgeStateUpdate.self, from: data)
+
+    try expectEqual(decoded.layout, layout, "State updates should preserve shared machine layout")
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
@@ -233,7 +343,12 @@ let tests: [(String, () throws -> Void)] = [
     ("key event normalisation", testEventNormalizerBuildsKeyDownFromCGEvent),
     ("mouse movement normalisation", testEventNormalizerBuildsMouseMoveDeltaFromCGEvent),
     ("bonjour discovery metadata", testDiscoveredPeerParsesBonjourTXTRecord),
-    ("bonjour discovery fallback", testDiscoveredPeerFallsBackWhenBonjourTXTRecordIsMissing)
+    ("bonjour discovery fallback", testDiscoveredPeerFallsBackWhenBonjourTXTRecordIsMissing),
+    ("peripheral stable identifiers", testPeripheralDeviceBuildsStableIdentifierFromHardwareProperties),
+    ("state update peripherals", testBridgeStateUpdateRoundTripsPeripherals),
+    ("shared layout translation", testMachineLayoutTranslatesSnapshotRelativeToReceivingMac),
+    ("shared layout edge mapping", testMachineLayoutMapsDraggedPlacementToNearestEdge),
+    ("state update shared layout", testBridgeStateUpdateRoundTripsSharedLayout)
 ]
 
 var failures: [String] = []

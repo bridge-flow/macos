@@ -4,6 +4,7 @@ import SwiftUI
 enum BridgeFlowSection: String, CaseIterable, Identifiable {
     case dashboard
     case peers
+    case peripherals
     case layout
     case permissions
     case settings
@@ -15,6 +16,7 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
         switch self {
         case .dashboard: "Dashboard"
         case .peers: "Peers"
+        case .peripherals: "Peripherals"
         case .layout: "Layout"
         case .permissions: "Permissions"
         case .settings: "Settings"
@@ -26,6 +28,7 @@ enum BridgeFlowSection: String, CaseIterable, Identifiable {
         switch self {
         case .dashboard: "gauge.with.dots.needle.67percent"
         case .peers: "desktopcomputer.and.macbook"
+        case .peripherals: "keyboard"
         case .layout: "rectangle.connected.to.line.below"
         case .permissions: "lock.shield"
         case .settings: "slider.horizontal.3"
@@ -91,6 +94,8 @@ struct BridgeFlowRootView: View {
             DashboardView(appState: appState)
         case .peers:
             PeersView(appState: appState)
+        case .peripherals:
+            PeripheralsView(appState: appState)
         case .layout:
             LayoutView(appState: appState)
         case .permissions:

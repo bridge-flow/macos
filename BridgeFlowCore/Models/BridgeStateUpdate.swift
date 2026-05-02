@@ -46,16 +46,41 @@ public struct BridgeStateUpdate: Codable, Hashable, Sendable {
     public var connectionStatus: ConnectionStatus
     public var latencyMs: Double?
     public var permissionsStatus: PermissionSnapshot
+    public var peripherals: [PeripheralDevice]
+    public var layout: MachineLayoutSnapshot?
+
+    private enum CodingKeys: String, CodingKey {
+        case activePeerId
+        case connectionStatus
+        case latencyMs
+        case permissionsStatus
+        case peripherals
+        case layout
+    }
 
     public init(
         activePeerId: UUID?,
         connectionStatus: ConnectionStatus,
         latencyMs: Double?,
-        permissionsStatus: PermissionSnapshot
+        permissionsStatus: PermissionSnapshot,
+        peripherals: [PeripheralDevice] = [],
+        layout: MachineLayoutSnapshot? = nil
     ) {
         self.activePeerId = activePeerId
         self.connectionStatus = connectionStatus
         self.latencyMs = latencyMs
         self.permissionsStatus = permissionsStatus
+        self.peripherals = peripherals
+        self.layout = layout
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        activePeerId = try container.decodeIfPresent(UUID.self, forKey: .activePeerId)
+        connectionStatus = try container.decode(ConnectionStatus.self, forKey: .connectionStatus)
+        latencyMs = try container.decodeIfPresent(Double.self, forKey: .latencyMs)
+        permissionsStatus = try container.decode(PermissionSnapshot.self, forKey: .permissionsStatus)
+        peripherals = try container.decodeIfPresent([PeripheralDevice].self, forKey: .peripherals) ?? []
+        layout = try container.decodeIfPresent(MachineLayoutSnapshot.self, forKey: .layout)
     }
 }

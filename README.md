@@ -21,8 +21,9 @@ The project is early, practical, and intentionally small: Swift, SwiftUI, AppKit
 - Bonjour discovery for BridgeFlow peers on the local network.
 - Manual peer connection by IP address and port.
 - Newline-delimited JSON protocol that is easy to inspect while developing.
-- Layout configuration for left, right, above and below.
-- MVP edge switching for left/right workflows.
+- Drag-and-drop desk layout for connected Macs, synced to peers in real time.
+- Edge switching based on the current layout position.
+- Local and remote peripheral inventory for keyboards, mice and trackpads.
 - Accessibility and Input Monitoring permission checks.
 - Pairing code flow with trusted peer IDs stored in UserDefaults.
 - Local logs, connection status, latency display and peer controls.
@@ -54,7 +55,7 @@ open dist
 
 ## Set Up Two Macs
 
-Install and open BridgeFlow on both Macs.
+Install and open BridgeFlow on both Macs, then press **Start** on the Mac that will capture your keyboard and pointer.
 
 On the Mac with the keyboard and mouse you want to use, choose **Host** or **Both** mode. On the Mac that will receive input, choose **Client** or **Both** mode.
 
@@ -71,9 +72,11 @@ You can also connect manually:
 2. On the host Mac, open **Peers**.
 3. Enter the IP address and port `48765`.
 4. Connect and trust the peer with the pairing code.
-5. Open **Layout** and choose where the remote Mac sits.
+5. Open **Layout** and drag the remote Mac to match your desk.
 
 For a two-way setup, run Both mode on both Macs and grant both permissions on both machines.
+
+If two Macs are connected but the pointer does not switch, open **Dashboard** and check **Input Capture**. macOS will block edge switching until Accessibility and Input Monitoring are granted to the installed `BridgeFlow.app`.
 
 ## Permissions
 
@@ -83,6 +86,8 @@ BridgeFlow asks for permissions only because macOS requires them for this class 
 - Input Monitoring allows BridgeFlow to listen for global keyboard and mouse events.
 
 The app shows the current permission state in the Permissions view and links directly to System Settings.
+
+After replacing or reinstalling the app, macOS may treat it as a new binary and require the permissions to be granted again.
 
 ## Security Model
 

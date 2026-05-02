@@ -42,14 +42,35 @@ struct DashboardView: View {
                     MetricCard(title: "Mode", value: settings.defaultMode.displayName, symbol: "rectangle.2.swap")
                     MetricCard(title: "Latency", value: latencyText, symbol: "speedometer")
                     MetricCard(title: "Permissions", value: permissionsText, symbol: "lock.shield")
+                    MetricCard(title: "Input Capture", value: appState.inputCaptureStatus.displayName, symbol: "keyboard.badge.eye")
                     MetricCard(title: "Remote Position", value: settings.remotePosition.compactPlacementLabel, symbol: settings.remotePosition.arrowSystemImage)
+                    MetricCard(title: "Peripherals", value: "\(appState.localPeripherals.count) local", symbol: "keyboard")
                 }
 
-                LayoutHintCard(
-                    edge: settings.remotePosition,
-                    localName: appState.localPeerInfo.name,
-                    remoteName: appState.activePeerName == "Local Mac" ? "Remote Mac" : appState.activePeerName
-                )
+                if appState.inputCaptureStatus == .permissionMissing {
+                    GlassCard {
+                        HStack(spacing: 14) {
+                            Image(systemName: "lock.trianglebadge.exclamationmark")
+                                .font(.title2)
+                                .foregroundStyle(BridgeFlowPalette.warning)
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Input capture is blocked")
+                                    .font(.headline)
+                                    .foregroundStyle(BridgeFlowPalette.textPrimary)
+                                Text(appState.inputCaptureStatus.message)
+                                    .font(.callout)
+                                    .foregroundStyle(BridgeFlowPalette.textSecondary)
+                            }
+
+                            Spacer()
+
+                            Button("Open Permissions") {
+                                permissions.openInputMonitoringSettings()
+                            }
+                        }
+                    }
+                }
 
                 if let lastError = appState.lastError {
                     GlassCard {

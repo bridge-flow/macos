@@ -28,6 +28,41 @@ public struct PeerSnapshot: Identifiable, Hashable, Sendable {
     }
 }
 
+public enum InputCaptureStatus: String, Identifiable, Sendable {
+    case stopped
+    case permissionMissing
+    case running
+    case unavailable
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .stopped:
+            "Stopped"
+        case .permissionMissing:
+            "Permission needed"
+        case .running:
+            "Capturing input"
+        case .unavailable:
+            "Unavailable"
+        }
+    }
+
+    public var message: String {
+        switch self {
+        case .stopped:
+            "Press Start to enable edge switching."
+        case .permissionMissing:
+            "Accessibility and Input Monitoring are required before BridgeFlow can move the pointer to another Mac."
+        case .running:
+            "Keyboard and pointer input are ready for edge switching."
+        case .unavailable:
+            "macOS refused the event tap. Check Input Monitoring, then restart BridgeFlow."
+        }
+    }
+}
+
 @MainActor
 public final class AppState: ObservableObject {
     @Published public var isRunning = false
@@ -36,6 +71,10 @@ public final class AppState: ObservableObject {
     @Published public var activePeerName = "Local Mac"
     @Published public var latencyMs: Double?
     @Published public var peers: [PeerSnapshot] = []
+    @Published public var localPeripherals: [PeripheralDevice] = []
+    @Published public var remotePeripheralsByPeerID: [UUID: [PeripheralDevice]] = [:]
+    @Published public private(set) var layoutSnapshot: MachineLayoutSnapshot
+    @Published public private(set) var inputCaptureStatus: InputCaptureStatus = .stopped
     @Published public var lastError: String?
 
     public let settings: SettingsStore
@@ -44,6 +83,7 @@ public final class AppState: ObservableObject {
 
     private let localPeerID: UUID
     private let injector: EventInjecting
+    private let peripheralProvider: PeripheralProviding
     private var pairingManager: PairingManager
     private var edgeDetector: MouseEdgeDetector
     private var eventTap: EventTapManager?
@@ -58,16 +98,31 @@ public final class AppState: ObservableObject {
         settings: SettingsStore? = nil,
         permissions: PermissionManager? = nil,
         logger: BridgeLogger? = nil,
-        injector: EventInjecting = EventInjector()
+        injector: EventInjecting = EventInjector(),
+        peripheralProvider: PeripheralProviding = PeripheralManager()
     ) {
         let resolvedSettings = settings ?? SettingsStore()
         self.settings = resolvedSettings
         self.permissions = permissions ?? PermissionManager()
         self.logger = logger ?? BridgeLogger()
         self.injector = injector
-        self.localPeerID = UserDefaults.standard.bridgeFlowLocalPeerID()
+        self.peripheralProvider = peripheralProvider
+        let resolvedLocalPeerID = UserDefaults.standard.bridgeFlowLocalPeerID()
+        self.localPeerID = resolvedLocalPeerID
+        self.layoutSnapshot = MachineLayoutSnapshot(
+            originPeerID: resolvedLocalPeerID,
+            placements: [
+                MachinePlacement(
+                    peerID: resolvedLocalPeerID,
+                    name: Host.current().localizedName ?? "This Mac",
+                    x: 0,
+                    y: 0
+                )
+            ]
+        )
         self.pairingManager = PairingManager(codeProvider: { resolvedSettings.pairingCode })
         self.edgeDetector = MouseEdgeDetector(configuration: resolvedSettings.edgeConfiguration())
+        refreshPeripherals()
         startDiscovery()
         startServer()
     }
@@ -82,12 +137,17 @@ public final class AppState: ObservableObject {
         )
     }
 
+    public var localPeerIdentifier: UUID {
+        localPeerID
+    }
+
     public func start() {
         guard !isRunning else {
             return
         }
 
         startDiscovery()
+        refreshPeripherals()
         edgeDetector = MouseEdgeDetector(configuration: settings.edgeConfiguration())
         let permissionSnapshot = permissions.refresh()
 
@@ -95,6 +155,8 @@ public final class AppState: ObservableObject {
 
         if settings.defaultMode == .host || settings.defaultMode == .both {
             startEventTapIfPermitted(permissionSnapshot)
+        } else {
+            inputCaptureStatus = .stopped
         }
 
         isRunning = true
@@ -117,8 +179,10 @@ public final class AppState: ObservableObject {
         }
         connections.removeAll()
         peerIDsByConnectionID.removeAll()
+        remotePeripheralsByPeerID.removeAll()
 
         injector.releaseAllKeys()
+        inputCaptureStatus = .stopped
         activePeerID = nil
         activePeerName = "Local Mac"
         connectionStatus = .stopped
@@ -175,6 +239,7 @@ public final class AppState: ObservableObject {
         connection.send(.control(.releaseAllKeys))
         connection.cancel()
         connections.removeValue(forKey: peerID)
+        remotePeripheralsByPeerID.removeValue(forKey: peerID)
         switchToLocal()
         markPeer(peerID, status: .stopped)
         logger.info("Disconnected peer")
@@ -190,6 +255,36 @@ public final class AppState: ObservableObject {
         pairingManager.remove(peerID: peerID)
         markPeer(peerID, trusted: false)
         logger.info("Removed peer trust")
+    }
+
+    public func refreshPeripherals() {
+        localPeripherals = peripheralProvider.connectedInputDevices()
+        broadcastState()
+        logger.info("Refreshed peripheral inventory: \(localPeripherals.count) input devices")
+    }
+
+    public func updatePeerPlacement(peerID: UUID, x: Double, y: Double) {
+        guard peerID != localPeerID else {
+            return
+        }
+
+        ensurePlacement(for: peerID, name: peerName(for: peerID))
+        let clampedX = min(max(x, -520), 520)
+        let clampedY = min(max(y, -320), 320)
+        let placement = MachinePlacement(
+            peerID: peerID,
+            name: peerName(for: peerID),
+            x: clampedX,
+            y: clampedY
+        )
+
+        layoutSnapshot = layoutSnapshot.updating(placement)
+        if let edge = layoutSnapshot.edge(from: localPeerID, to: peerID) {
+            settings.remotePosition = edge
+            edgeDetector.configuration = settings.edgeConfiguration()
+        }
+        broadcastState()
+        logger.info("Updated peer layout for \(peerName(for: peerID))")
     }
 
     public func switchToLocal() {
@@ -213,9 +308,13 @@ public final class AppState: ObservableObject {
             let server = PeerServer(port: UInt16(settings.port), advertisedPeerInfo: localPeerInfo)
             server.onConnection = { [weak self] connection in
                 Task { @MainActor in
-                    self?.configure(connection)
-                    connection.send(.hello(peer: self?.localPeerInfo ?? PeerInfo(id: UUID(), name: "BridgeFlow", hostname: "localhost", appVersion: "0.1.0", role: .both)))
-                    self?.logger.info("Peer connected from \(connection.endpointDescription)")
+                    guard let self else {
+                        return
+                    }
+                    self.configure(connection)
+                    connection.send(.hello(peer: self.localPeerInfo))
+                    connection.send(.state(self.stateUpdate()))
+                    self.logger.info("Peer connected from \(connection.endpointDescription)")
                 }
             }
             server.onStateChange = { [weak self] state in
@@ -271,6 +370,7 @@ public final class AppState: ObservableObject {
 
     private func startEventTapIfPermitted(_ snapshot: PermissionSnapshot) {
         guard snapshot.accessibilityGranted && snapshot.inputMonitoringGranted else {
+            inputCaptureStatus = .permissionMissing
             logger.warning("Input capture permissions are missing")
             return
         }
@@ -284,8 +384,10 @@ public final class AppState: ObservableObject {
 
         if tap.start() {
             eventTap = tap
+            inputCaptureStatus = .running
             logger.info("Global input capture started")
         } else {
+            inputCaptureStatus = .unavailable
             logger.warning("Could not create event tap; check Input Monitoring")
         }
     }
@@ -314,8 +416,8 @@ public final class AppState: ObservableObject {
             timestamp: Date().timeIntervalSince1970
         )
 
-        if case let .switchToPeer(edge) = action, let firstPeer = peers.first(where: { $0.status == .connected || $0.status == .active }) {
-            activatePeer(firstPeer.id, edge: edge)
+        if case let .switchToPeer(edge) = action, let peer = peerForSwitching(at: edge) {
+            activatePeer(peer.id, edge: edge)
             return false
         }
 
@@ -368,17 +470,31 @@ public final class AppState: ObservableObject {
         case let .control(command):
             handle(command, from: connection)
         case let .state(update):
-            if let activePeerId = update.activePeerId {
-                activePeerID = activePeerId
-            }
-            latencyMs = update.latencyMs
-            connectionStatus = update.connectionStatus
+            handleStateUpdate(update, from: connection)
         case let .heartbeat(timestamp):
-            latencyMs = max(0, (Date().timeIntervalSince1970 - timestamp) * 1_000)
-            connection.send(.heartbeat(timestamp: Date().timeIntervalSince1970))
+            handleHeartbeat(timestamp, from: connection)
         case let .error(message):
             reportError(message)
         }
+    }
+
+    private func handleStateUpdate(_ update: BridgeStateUpdate, from connection: PeerConnection) {
+        if let peerID = peerID(for: connection) {
+            remotePeripheralsByPeerID[peerID] = update.peripherals
+        }
+        if let layout = update.layout {
+            applyRemoteLayout(layout, from: connection)
+        }
+        if let activePeerId = update.activePeerId {
+            activePeerID = activePeerId
+        }
+        latencyMs = update.latencyMs
+        connectionStatus = update.connectionStatus
+    }
+
+    private func handleHeartbeat(_ timestamp: TimeInterval, from connection: PeerConnection) {
+        latencyMs = max(0, (Date().timeIntervalSince1970 - timestamp) * 1_000)
+        connection.send(.heartbeat(timestamp: Date().timeIntervalSince1970))
     }
 
     private func handleHello(_ peer: PeerInfo, from connection: PeerConnection) {
@@ -387,6 +503,7 @@ public final class AppState: ObservableObject {
         connections.removeValue(forKey: connection.id)
         removeTemporaryPeerIfNeeded(previousPeerID, realPeerID: peer.id)
         connections[peer.id] = connection
+        ensurePlacement(for: peer.id, name: peer.name)
         upsertPeer(PeerSnapshot(
             id: peer.id,
             name: peer.name,
@@ -395,6 +512,8 @@ public final class AppState: ObservableObject {
             trusted: pairingManager.isTrusted(peer.id)
         ))
         connectionStatus = .connected
+        refreshEdgeConfiguration(for: peer.id)
+        connection.send(.state(stateUpdate()))
         logger.info("Peer hello received from \(peer.name)")
     }
 
@@ -404,6 +523,7 @@ public final class AppState: ObservableObject {
         }
         connections.removeValue(forKey: temporaryPeerID)
         discoveredEndpoints.removeValue(forKey: temporaryPeerID)
+        remotePeripheralsByPeerID.removeValue(forKey: temporaryPeerID)
         peers.removeAll { $0.id == temporaryPeerID }
     }
 
@@ -421,12 +541,7 @@ public final class AppState: ObservableObject {
         case .ping:
             connection.send(.heartbeat(timestamp: Date().timeIntervalSince1970))
         case .requestState:
-            connection.send(.state(BridgeStateUpdate(
-                activePeerId: activePeerID,
-                connectionStatus: connectionStatus,
-                latencyMs: latencyMs,
-                permissionsStatus: permissions.snapshot
-            )))
+            connection.send(.state(stateUpdate()))
         }
     }
 
@@ -450,12 +565,14 @@ public final class AppState: ObservableObject {
             connectionStatus = .connected
             markPeer(peerID, status: .connected)
             connection.send(.hello(peer: localPeerInfo))
+            connection.send(.state(stateUpdate()))
         case let .failed(error):
             reportError(error.localizedDescription)
             markPeer(peerID, status: .error)
             injector.releaseAllKeys()
         case .cancelled:
             markPeer(peerID, status: .stopped)
+            remotePeripheralsByPeerID.removeValue(forKey: peerID)
             injector.releaseAllKeys()
             if activePeerID == peerID {
                 switchToLocal()
@@ -486,6 +603,7 @@ public final class AppState: ObservableObject {
         discoveredEndpoints[peer.id] = peer.endpoint
 
         if connections[peer.id] == nil {
+            ensurePlacement(for: peer.id, name: peer.name)
             upsertPeer(PeerSnapshot(
                 id: peer.id,
                 name: peer.name,
@@ -498,10 +616,89 @@ public final class AppState: ObservableObject {
 
     private func handleLostPeer(_ peerID: UUID) {
         discoveredEndpoints.removeValue(forKey: peerID)
+        remotePeripheralsByPeerID.removeValue(forKey: peerID)
         guard connections[peerID] == nil else {
             return
         }
         peers.removeAll { $0.id == peerID }
+    }
+
+    private func stateUpdate() -> BridgeStateUpdate {
+        BridgeStateUpdate(
+            activePeerId: activePeerID,
+            connectionStatus: connectionStatus,
+            latencyMs: latencyMs,
+            permissionsStatus: permissions.snapshot,
+            peripherals: localPeripherals,
+            layout: layoutSnapshot
+        )
+    }
+
+    private func broadcastState() {
+        let update = stateUpdate()
+        for connection in connections.values {
+            connection.send(.state(update))
+        }
+    }
+
+    private func peerID(for connection: PeerConnection) -> UUID? {
+        if let peerID = peerIDsByConnectionID[connection.id] {
+            return peerID
+        }
+        return connections.first { _, storedConnection in
+            storedConnection === connection
+        }?.key
+    }
+
+    private func peerForSwitching(at edge: ScreenEdge) -> PeerSnapshot? {
+        let connectedPeers = peers.filter { peer in
+            peer.status == .connected || peer.status == .active
+        }
+        return connectedPeers.first { peer in
+            layoutSnapshot.edge(from: localPeerID, to: peer.id) == edge
+        } ?? connectedPeers.first
+    }
+
+    private func applyRemoteLayout(_ snapshot: MachineLayoutSnapshot, from connection: PeerConnection) {
+        let translated = snapshot.translated(relativeTo: localPeerID)
+        guard translated.placement(for: localPeerID) != nil else {
+            return
+        }
+
+        layoutSnapshot = translated
+        if let peerID = peerID(for: connection) {
+            refreshEdgeConfiguration(for: peerID)
+        }
+    }
+
+    private func ensurePlacement(for peerID: UUID, name: String) {
+        guard layoutSnapshot.placement(for: peerID) == nil else {
+            return
+        }
+
+        layoutSnapshot = layoutSnapshot.updating(defaultPlacement(for: peerID, name: name))
+    }
+
+    private func defaultPlacement(for peerID: UUID, name: String) -> MachinePlacement {
+        let offset = 300 + Double(max(0, layoutSnapshot.placements.count - 1)) * 36
+        switch settings.remotePosition {
+        case .left:
+            return MachinePlacement(peerID: peerID, name: name, x: -offset, y: 0)
+        case .right:
+            return MachinePlacement(peerID: peerID, name: name, x: offset, y: 0)
+        case .above:
+            return MachinePlacement(peerID: peerID, name: name, x: 0, y: offset)
+        case .below:
+            return MachinePlacement(peerID: peerID, name: name, x: 0, y: -offset)
+        }
+    }
+
+    private func refreshEdgeConfiguration(for peerID: UUID) {
+        guard let edge = layoutSnapshot.edge(from: localPeerID, to: peerID) else {
+            return
+        }
+        settings.remotePosition = edge
+        edgeDetector.configuration = settings.edgeConfiguration()
     }
 
     private func peerName(for peerID: UUID) -> String {
