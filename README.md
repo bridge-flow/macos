@@ -24,7 +24,7 @@ The project is early, practical, and intentionally small: Swift, SwiftUI, AppKit
 - Drag-and-drop desk layout for connected Macs, synced to peers in real time.
 - Edge switching based on the current layout position.
 - Local and remote peripheral inventory for keyboards, mice and trackpads.
-- First-run permission setup for Accessibility, Input Monitoring and Local Network access.
+- First-run setup with live permission status for Accessibility, Input Monitoring and Local Network discovery.
 - Accessibility and Input Monitoring permission checks.
 - Pairing code flow with trusted peer IDs stored in UserDefaults.
 - Local logs, connection status, latency display and peer controls.
@@ -56,7 +56,7 @@ open dist
 
 ## Set Up Two Macs
 
-Install and open BridgeFlow on both Macs. On first launch, BridgeFlow walks through the macOS permissions it needs before starting network discovery and input capture.
+Install and open BridgeFlow on both Macs. On first launch, BridgeFlow opens Setup, requests the grantable macOS permissions, and keeps refreshing while you return from System Settings.
 
 On the Mac with the keyboard and mouse you want to use, choose **Host** or **Both** mode. On the Mac that will receive input, choose **Client** or **Both** mode.
 
@@ -76,7 +76,7 @@ You can also connect manually:
 2. On the host Mac, open **Peers**.
 3. Enter the IP address and port `48765`.
 4. Connect and trust the peer with the pairing code.
-5. Open **Layout** and drag the remote Mac to match your desk.
+5. Open **Flow** and drag the remote Mac to match your desk.
 
 For a two-way setup, run Both mode on both Macs and grant both permissions on both machines.
 

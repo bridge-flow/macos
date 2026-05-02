@@ -4,6 +4,8 @@ BridgeFlow follows small, explicit releases. Dates use UTC.
 
 ## Unreleased
 
+- Redesigned the app around a focused Flow screen with a large drag-and-drop Mac layout and fewer navigation items.
+- Reworked setup to request grantable permissions automatically, refresh live and avoid false Local Network success states.
 - Improved first-run permission setup with automatic refresh, auto-advance and clearer Local Network status.
 - Added a drag-and-drop desk layout that syncs peer positions in real time.
 - Added local and remote peripheral inventory for shared input devices.
