@@ -341,6 +341,26 @@ func testPermissionOnboardingStepsUseExpectedOrderAndCopy() throws {
     try expectEqual(PermissionOnboardingStep.localNetwork.systemImage, "network", "Local Network step should use the network symbol")
 }
 
+func testPermissionOnboardingProgressAdvancesAfterGrantedStep() throws {
+    let progress = PermissionOnboardingProgress(
+        snapshot: PermissionSnapshot(accessibilityGranted: true, inputMonitoringGranted: false),
+        localNetworkReady: false
+    )
+
+    try expectEqual(progress.nextStep(afterCompleting: .accessibility), .inputMonitoring, "Granted Accessibility should advance to Input Monitoring")
+    try expectEqual(progress.nextStep(afterCompleting: .inputMonitoring), .inputMonitoring, "Missing Input Monitoring should stay on the same step")
+}
+
+func testPermissionOnboardingProgressFinishesWhenAllStepsAreReady() throws {
+    let progress = PermissionOnboardingProgress(
+        snapshot: PermissionSnapshot(accessibilityGranted: true, inputMonitoringGranted: true),
+        localNetworkReady: true
+    )
+
+    try expect(progress.nextStep(afterCompleting: .localNetwork) == nil, "Completed onboarding should have no next step")
+    try expect(progress.firstIncompleteStep() == nil, "Completed onboarding should not report an incomplete step")
+}
+
 let tests: [(String, () throws -> Void)] = [
     ("input event codec round-trip", testInputEventRoundTripsThroughMessageCodec),
     ("stream decoder chunking", testCodecDecodesMultipleNewlineDelimitedMessagesFromChunks),
@@ -358,7 +378,9 @@ let tests: [(String, () throws -> Void)] = [
     ("shared layout translation", testMachineLayoutTranslatesSnapshotRelativeToReceivingMac),
     ("shared layout edge mapping", testMachineLayoutMapsDraggedPlacementToNearestEdge),
     ("state update shared layout", testBridgeStateUpdateRoundTripsSharedLayout),
-    ("permission onboarding steps", testPermissionOnboardingStepsUseExpectedOrderAndCopy)
+    ("permission onboarding steps", testPermissionOnboardingStepsUseExpectedOrderAndCopy),
+    ("permission onboarding auto advance", testPermissionOnboardingProgressAdvancesAfterGrantedStep),
+    ("permission onboarding completion", testPermissionOnboardingProgressFinishesWhenAllStepsAreReady)
 ]
 
 var failures: [String] = []

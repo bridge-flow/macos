@@ -68,6 +68,8 @@ Grant permissions when prompted:
 
 BridgeFlow discovers other running BridgeFlow instances on the local network. If a Mac does not appear, make sure BridgeFlow is open on that Mac and Local Network access is allowed by macOS.
 
+macOS does not provide a direct Local Network permission request API. BridgeFlow triggers discovery during setup; the native prompt appears only when macOS needs a decision for that installed app. If the setting already exists, the setup screen shows the request as started and waits for peer discovery as confirmation.
+
 You can also connect manually:
 
 1. Find the client Mac's local IP address.

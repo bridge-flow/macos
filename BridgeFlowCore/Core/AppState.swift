@@ -265,6 +265,18 @@ public final class AppState: ObservableObject {
         logger.info("Refreshed peripheral inventory: \(localPeripherals.count) input devices")
     }
 
+    @discardableResult
+    public func refreshPermissionsAndResumeInputCaptureIfPossible() -> PermissionSnapshot {
+        let snapshot = permissions.refresh()
+        guard isRunning,
+              inputCaptureStatus == .permissionMissing,
+              settings.defaultMode == .host || settings.defaultMode == .both else {
+            return snapshot
+        }
+        startEventTapIfPermitted(snapshot)
+        return snapshot
+    }
+
     public func requestLocalNetworkAccess() {
         startDiscovery()
         startServer()

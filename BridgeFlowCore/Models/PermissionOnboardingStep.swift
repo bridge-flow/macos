@@ -36,7 +36,7 @@ public enum PermissionOnboardingStep: String, CaseIterable, Identifiable, Sendab
         case .inputMonitoring:
             "Request Input Monitoring"
         case .localNetwork:
-            "Enable Local Network"
+            "Start Discovery"
         }
     }
 
@@ -49,5 +49,43 @@ public enum PermissionOnboardingStep: String, CaseIterable, Identifiable, Sendab
         case .localNetwork:
             "network"
         }
+    }
+}
+
+public struct PermissionOnboardingProgress: Hashable, Sendable {
+    public var snapshot: PermissionSnapshot
+    public var localNetworkReady: Bool
+
+    public init(snapshot: PermissionSnapshot, localNetworkReady: Bool) {
+        self.snapshot = snapshot
+        self.localNetworkReady = localNetworkReady
+    }
+
+    public func isComplete(_ step: PermissionOnboardingStep) -> Bool {
+        switch step {
+        case .accessibility:
+            snapshot.accessibilityGranted
+        case .inputMonitoring:
+            snapshot.inputMonitoringGranted
+        case .localNetwork:
+            localNetworkReady
+        }
+    }
+
+    public func firstIncompleteStep() -> PermissionOnboardingStep? {
+        PermissionOnboardingStep.allCases.first { !isComplete($0) }
+    }
+
+    public func nextStep(afterCompleting step: PermissionOnboardingStep) -> PermissionOnboardingStep? {
+        guard isComplete(step) else {
+            return step
+        }
+
+        let steps = PermissionOnboardingStep.allCases
+        guard let index = steps.firstIndex(of: step) else {
+            return firstIncompleteStep()
+        }
+
+        return steps[(index + 1)...].first { !isComplete($0) }
     }
 }

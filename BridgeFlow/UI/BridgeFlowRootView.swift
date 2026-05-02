@@ -1,3 +1,4 @@
+import AppKit
 import BridgeFlowCore
 import SwiftUI
 
@@ -105,6 +106,9 @@ struct BridgeFlowRootView: View {
             if !completed {
                 showPermissionOnboarding = true
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            _ = appState.refreshPermissionsAndResumeInputCaptureIfPossible()
         }
     }
 

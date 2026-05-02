@@ -1,3 +1,4 @@
+import AppKit
 import BridgeFlowCore
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct PermissionOnboardingView: View {
 
     @State private var currentStep: PermissionOnboardingStep = .accessibility
     @State private var didRequestLocalNetwork = false
+    private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     init(appState: AppState, isPresented: Binding<Bool>) {
         self.appState = appState
@@ -73,7 +75,7 @@ struct PermissionOnboardingView: View {
                                 .foregroundStyle(BridgeFlowPalette.textSecondary)
 
                             if currentStep == .localNetwork {
-                                Text("macOS does not provide a preflight API for Local Network. BridgeFlow starts Bonjour discovery from this step so the system prompt appears while setup is visible.")
+                                Text("macOS does not provide a preflight API for Local Network. BridgeFlow starts Bonjour discovery from this step; the system prompt may appear only if macOS has not already recorded a decision for this app.")
                                     .font(.callout)
                                     .foregroundStyle(BridgeFlowPalette.textSecondary)
                             }
@@ -94,7 +96,7 @@ struct PermissionOnboardingView: View {
                                 }
 
                                 Button {
-                                    _ = permissions.refresh()
+                                    refreshPermissionState(allowAutoAdvance: true)
                                 } label: {
                                     Label("Refresh", systemImage: "arrow.clockwise")
                                 }
@@ -129,10 +131,32 @@ struct PermissionOnboardingView: View {
             .padding(26)
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            refreshPermissionState(allowAutoAdvance: true)
+        }
+        .onReceive(refreshTimer) { _ in
+            refreshPermissionState(allowAutoAdvance: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissionState(allowAutoAdvance: true)
+        }
     }
 
     private var currentIndex: Int {
         PermissionOnboardingStep.allCases.firstIndex(of: currentStep) ?? 0
+    }
+
+    private var progress: PermissionOnboardingProgress {
+        PermissionOnboardingProgress(
+            snapshot: permissions.snapshot,
+            localNetworkReady: localNetworkReady
+        )
+    }
+
+    private var localNetworkReady: Bool {
+        appState.peers.contains { peer in
+            peer.status == .available || peer.status == .connected || peer.status == .active
+        }
     }
 
     private func stepButton(_ step: PermissionOnboardingStep) -> some View {
@@ -177,6 +201,7 @@ struct PermissionOnboardingView: View {
             didRequestLocalNetwork = true
             appState.requestLocalNetworkAccess()
         }
+        refreshPermissionState(allowAutoAdvance: true)
     }
 
     private func openSettingsForCurrentStep() {
@@ -188,6 +213,7 @@ struct PermissionOnboardingView: View {
         case .localNetwork:
             permissions.openLocalNetworkSettings()
         }
+        refreshPermissionState(allowAutoAdvance: false)
     }
 
     private func move(offset: Int) {
@@ -207,21 +233,48 @@ struct PermissionOnboardingView: View {
     }
 
     private func isComplete(_ step: PermissionOnboardingStep) -> Bool {
-        switch step {
-        case .accessibility:
-            permissions.snapshot.accessibilityGranted
-        case .inputMonitoring:
-            permissions.snapshot.inputMonitoringGranted
-        case .localNetwork:
-            didRequestLocalNetwork || appState.connectionStatus != .stopped || !appState.peers.isEmpty
+        progress.isComplete(step)
+    }
+
+    private func refreshPermissionState(allowAutoAdvance: Bool) {
+        _ = appState.refreshPermissionsAndResumeInputCaptureIfPossible()
+        guard allowAutoAdvance else {
+            return
         }
+
+        advanceWhenCurrentStepIsReady()
+    }
+
+    private func advanceWhenCurrentStepIsReady() {
+        var step = currentStep
+        var hops = 0
+        while progress.isComplete(step),
+              let next = progress.nextStep(afterCompleting: step),
+              next != step,
+              hops < PermissionOnboardingStep.allCases.count {
+            step = next
+            hops += 1
+        }
+        currentStep = step
     }
 
     private func statusText(for step: PermissionOnboardingStep) -> String {
-        isComplete(step) ? "Ready" : "Needs action"
+        if progress.isComplete(step) {
+            return "Ready"
+        }
+        if step == .localNetwork && didRequestLocalNetwork {
+            return "Requested"
+        }
+        return "Needs action"
     }
 
     private func statusColour(for step: PermissionOnboardingStep) -> Color {
-        isComplete(step) ? BridgeFlowPalette.success : BridgeFlowPalette.warning
+        if progress.isComplete(step) {
+            return BridgeFlowPalette.success
+        }
+        if step == .localNetwork && didRequestLocalNetwork {
+            return BridgeFlowPalette.cyan
+        }
+        return BridgeFlowPalette.warning
     }
 }
