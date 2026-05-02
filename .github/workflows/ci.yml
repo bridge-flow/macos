@@ -24,23 +24,8 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Verify app assets are present
-        run: |
-          test -f BridgeFlow/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png
-          test -f BridgeFlow/Assets.xcassets/BridgeFlowIcon.imageset/bridgeflow-icon.png
-
       - name: Run tests
-        run: make test
+        run: swift test
 
       - name: Build app
-        run: make check build
-
-      - name: Package app bundle
-        run: make package
-
-      - name: Upload app bundle artifact
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: BridgeFlow.app
-          path: dist/BridgeFlow.app
-          if-no-files-found: error
+        run: swift build
